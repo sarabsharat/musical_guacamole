@@ -1,0 +1,107 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  platform_admin
+  restaurant_owner
+  nutritionist_auditor
+  jfda_officer
+}
+
+enum CertStatus {
+  NONE
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum CertLevel {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+}
+
+enum RecipeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+enum NotificationType {
+  SYSTEM
+  CERT_APPROVAL
+  CERT_REJECTION
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  password_hash String
+  role          Role
+  full_name     String
+  phone_number  String
+  created_at    DateTime       @default(now())
+  restaurants   Restaurant[]
+}
+
+model Restaurant {
+  id            Int             @id @default(autoincrement())
+  business_name String
+  address_line  String
+  cert_status   CertStatus      @default(NONE)
+  cert_level    CertLevel       @default(LEVEL_1)
+  owner_id      Int
+  owner         User            @relation(fields: [owner_id], references: [id])
+  recipes       Recipe[]
+}
+
+model IngredientReference {
+  id               Int                @id @default(autoincrement())
+  name             String             @unique // e.g., "Kmaj Bread (Local Bakery X)"
+  calories_per_g   Decimal
+  protein_per_g    Decimal
+  carbs_per_g      Decimal
+  fat_per_g        Decimal
+  recipe_links     RecipeIngredient[]
+}
+
+model Recipe {
+  id                Int                @id @default(autoincrement())
+  restaurant_id     Int
+  restaurant        Restaurant         @relation(fields: [restaurant_id], references: [id])
+  meal_name         String
+  image_url         String
+  preparation_notes String
+  calories          Decimal
+  protein           Decimal
+  carbs             Decimal
+  total_fat         Decimal
+  status            RecipeStatus       @default(PENDING)
+  rejection_reason  String?
+  ingredients       RecipeIngredient[]
+  versions          RecipeVersion[]
+}
+
+model RecipeIngredient {
+  id                 Int                 @id @default(autoincrement())
+  recipe_id          Int
+  recipe             Recipe              @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+  ingredient_id      Int
+  ingredient_item    IngredientReference @relation(fields: [ingredient_id], references: [id])
+  user_stated_amount String              // e.g., "2 pieces", "a splash"
+  normalized_grams   Decimal             // Scaled weight after mapping
+}
+
+model RecipeVersion {
+  id         Int      @id @default(autoincrement())
+  recipe_id  Int
+  recipe     Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+  snapshot   Json     // Immutable copy of the approved recipe data
+  created_at DateTime @default(now())
+}
