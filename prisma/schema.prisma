@@ -38,6 +38,11 @@ enum NotificationType {
   CERT_APPROVAL
   CERT_REJECTION
 }
+enum DraftStatus {
+  PROCESSING
+  RESOLVED
+  FAILED
+}
 
 model User {
   id            Int            @id @default(autoincrement())
@@ -59,6 +64,8 @@ model Restaurant {
   owner_id      Int
   owner         User            @relation(fields: [owner_id], references: [id])
   recipes       Recipe[]
+  profile       KitchenControlProfile[]
+  recipeDrafts RecipeDraft[]
 }
 
 model IngredientReference {
@@ -68,6 +75,7 @@ model IngredientReference {
   protein_per_g    Decimal
   carbs_per_g      Decimal
   fat_per_g        Decimal
+  allergens        String[]           @default([])
   recipe_links     RecipeIngredient[]
 }
 
@@ -84,6 +92,7 @@ model Recipe {
   total_fat         Decimal
   status            RecipeStatus       @default(PENDING)
   rejection_reason  String?
+  detected_allergens String[]          @default([])
   ingredients       RecipeIngredient[]
   versions          RecipeVersion[]
 }
@@ -98,10 +107,44 @@ model RecipeIngredient {
   normalized_grams   Decimal             // Scaled weight after mapping
 }
 
+model KitchenControlProfile {
+  id                      Int      @id @default(autoincrement())
+  restaurantId            Int      @unique
+
+  // Specific toggles for the two controls you want
+  hasDedicatedAllergenZones Boolean @default(false)
+  usesStandardizedRecipes  Boolean @default(false)
+
+  updatedAt               DateTime @updatedAt
+  restaurant              Restaurant @relation(fields: [restaurantId], references: [id])
+}
+
 model RecipeVersion {
   id         Int      @id @default(autoincrement())
   recipe_id  Int
   recipe     Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
   snapshot   Json     // Immutable copy of the approved recipe data
   created_at DateTime @default(now())
+}
+
+model RecipeDraft {
+  id               Int            @id @default(autoincrement())
+  restaurant_id    Int
+  restaurant       Restaurant     @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+  raw_input_text   String
+  image_url        String?
+  extracted_json   Json?          // Intermediate JSON payload from the AI extraction pipeline
+  status           DraftStatus    @default(PROCESSING)
+  error_message    String?
+  created_at       DateTime       @default(now())
+}
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  actor_id      Int      // Links to User.id
+  restaurant_id Int?     // Linked Context
+  recipe_id     Int?     // Linked Context
+  action        String   // e.g., "RECIPE_APPROVED", "CERT_REVOKED", "RECIPE_REVERTED"
+  payload       Json?    // Detailed diffs of changes
+  created_at    DateTime @default(now())
 }
