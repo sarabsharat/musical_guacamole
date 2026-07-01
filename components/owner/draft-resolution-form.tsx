@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { resolveDraftToRecipe } from "@/actions/owner-drafts";
-import { SessionUser } from "@/lib/security";
+import { SessionUser } from "@/lib/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -27,7 +27,7 @@ interface RecipeDraft {
     id: number;
     raw_input_text: string;
     image_url: string | null;
-    extracted_json: any; // Raw JSON payload
+    extracted_json: ExtractedItem[] | null; // FIX 1: Removed 'any'
 }
 
 interface FormProps {
@@ -37,32 +37,28 @@ interface FormProps {
 }
 
 interface FormIngredientRow {
-    keyId: string; // Unique UI key
+    keyId: string;
     rawText: string;
     userStatedAmount: string;
     normalizedGrams: number;
-    selectedIngredientId: number; // Linked DB Reference ID
+    selectedIngredientId: number;
 }
 
 export function DraftResolutionForm({ currentUser, draft, references }: FormProps) {
     const router = useRouter();
+
     const [mealName, setMealName] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Initialize form rows from AI structured JSON
-    const [rows, setRows] = useState<FormIngredientRow[]>([]);
-
-    useEffect(() => {
-        // Safely parse LLM output list from draft
+    // FIX 2: Initialize state directly instead of using useEffect to prevent cascading renders
+    const [rows, setRows] = useState<FormIngredientRow[]>(() => {
         const parsedExtracted: ExtractedItem[] = Array.isArray(draft.extracted_json)
             ? draft.extracted_json
             : [];
 
-        const initialRows = parsedExtracted.map((item, idx) => {
-            // Find fallback match if resolver set matched id
+        return parsedExtracted.map((item, idx) => {
             const resolvedId = item.resolved_ingredient_id || references[0]?.id || 0;
-
             return {
                 keyId: `${idx}-${Date.now()}`,
                 rawText: item.raw_text,
@@ -71,12 +67,10 @@ export function DraftResolutionForm({ currentUser, draft, references }: FormProp
                 selectedIngredientId: resolvedId,
             };
         });
+    });
 
-        setRows(initialRows);
-    }, [draft.extracted_json, references]);
-
-    // UI state mutators
-    const updateRowField = (keyId: string, field: keyof FormIngredientRow, value: any) => {
+    // FIX 1: Replaced 'any' with explicit types
+    const updateRowField = (keyId: string, field: keyof FormIngredientRow, value: string | number) => {
         setRows((prev) =>
             prev.map((row) => (row.keyId === keyId ? { ...row, [field]: value } : row))
         );
@@ -100,16 +94,8 @@ export function DraftResolutionForm({ currentUser, draft, references }: FormProp
         ]);
     };
 
-    // Live Recalculation preview calculations (Pre-resolution UI feedback)
-    const [livePreview, setLivePreview] = useState({
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        allergens: new Set<string>(),
-    });
-
-    useEffect(() => {
+    // FIX 2: Calculate live preview as Derived State using useMemo (no useEffect needed!)
+    const livePreview = useMemo(() => {
         let caloriesSum = 0;
         let proteinSum = 0;
         let carbsSum = 0;
@@ -133,13 +119,13 @@ export function DraftResolutionForm({ currentUser, draft, references }: FormProp
             }
         }
 
-        setLivePreview({
+        return {
             calories: parseFloat(caloriesSum.toFixed(1)),
             protein: parseFloat(proteinSum.toFixed(1)),
             carbs: parseFloat(carbsSum.toFixed(1)),
             fat: parseFloat(fatSum.toFixed(1)),
             allergens: allergensSet,
-        });
+        };
     }, [rows, references]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -158,7 +144,7 @@ export function DraftResolutionForm({ currentUser, draft, references }: FormProp
 
         const payload = {
             draft_id: draft.id,
-            meal_name: mealName,
+            meal_name: mealName, // FIX 3: Reverted back to the exact backend requirement
             ingredients: rows.map((row) => ({
                 ingredient_id: row.selectedIngredientId,
                 user_stated_amount: row.userStatedAmount,

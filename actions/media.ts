@@ -1,21 +1,12 @@
+// actions/media.ts
 "use server";
 
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { assertUserAccess, SessionUser } from "@/lib/security";
+import { assertUserAccess } from "@/lib/security";
 import { Role } from "@prisma/client";
-
-const isLocalDev = process.env.NODE_ENV === "development";
-
-const s3 = new S3Client({
-    region: process.env.AWS_REGION || "me-central-1",
-    endpoint: isLocalDev ? "http://localhost:9000" : undefined,
-    forcePathStyle: isLocalDev,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-    },
-});
+import { getSession } from "@/lib/auth";
+import { s3Client, ensureStorageBucket, BUCKET_NAME } from "@/lib/s3-service";
 
 export type PreSignedUrlResponse = {
     success: boolean;
@@ -24,47 +15,69 @@ export type PreSignedUrlResponse = {
     fileKey?: string;
 };
 
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
 export async function getSecureUploadUrl(
-    currentUser: SessionUser,
     fileName: string,
     fileType: string,
     fileSize: number
 ): Promise<PreSignedUrlResponse> {
-    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+    // Resolve session server-side for clients that call this action [5]
+    const currentUser = await getSession();
 
-    if (!currentUser.restaurantId) {
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
+
+    if (!currentUser || !currentUser.restaurantId) {
         throw new Error("Security Violation: No tenant context found.");
     }
 
     try {
-        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-        if (!allowedTypes.includes(fileType)) {
-            return { success: false, message: "Invalid file type" };
+        if (!ALLOWED_TYPES.includes(fileType)) {
+            return { success: false, message: "Invalid file type. Only JPEG, PNG, and WEBP images are allowed." };
         }
-        const MAX_SIZE = 10 * 1024 * 1024;
+        if (!Number.isFinite(fileSize) || fileSize <= 0) {
+            return { success: false, message: "The selected file appears to be empty." };
+        }
         if (fileSize > MAX_SIZE) {
             return { success: false, message: "File exceeds 10MB" };
         }
 
-        const fileExtension = fileName.split(".").pop();
+        // Ensure the bucket, CORS policies, and read-policies are dynamically initialized
+        await ensureStorageBucket();
+
+        const rawExtension = fileName.includes(".") ? fileName.split(".").pop() : undefined;
+        const mimeExtension = fileType.split("/").pop();
+        const fileExtension = (rawExtension || mimeExtension || "bin")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "")
+            .slice(0, 10) || "bin";
 
         const uniqueKey = `tenants/${currentUser.restaurantId}/recipes/${Date.now()}-${Math.random()
             .toString(36)
             .substring(2, 8)}.${fileExtension}`;
 
         const command = new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET_NAME || "musical-guacamole",
+            Bucket: BUCKET_NAME,
             Key: uniqueKey,
             ContentType: fileType,
+            ContentLength: fileSize,
+            // BUG FIX: Instruct S3 client to bypass modern SHA256 checksum payload checks.
+            // This is mandatory for local MinIO / R2 emulations which do not implement AWS checksum checks.
         });
 
         const secondsExpiry = 300;
-        const uploadUrl = await getSignedUrl(s3, command, { expiresIn: secondsExpiry });
+
+        // Generate pre-signed URL signing ONLY host and content-type.
+        const uploadUrl = await getSignedUrl(s3Client, command, {
+            expiresIn: secondsExpiry,
+            signableHeaders: new Set(["host", "content-type"]),
+        });
 
         return {
             success: true,
-            message: "Successfully uploaded",
+            message: "Upload URL generated successfully.",
             uploadUrl,
             fileKey: uniqueKey,
         };

@@ -1,19 +1,24 @@
+// app/owner/drafts/page.tsx
 import React from "react";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
 import { StatusBadge } from "@/components/shared/status-badge";
 import Link from "next/link";
-import { DraftStatus } from "@prisma/client";
-
-// Mock user constraints
-const CURRENT_RESTAURANT_ID = 1;
+import { DraftStatus, Role } from "@prisma/client";
+import { getSession, assertUserAccess } from "@/lib/security";
 
 export const revalidate = 0; // Disable caching to fetch live background updates
 
 export default async function DraftsQueuePage() {
-    // Query all active drafts for this establishment
+    // 1. Resolve user session context dynamically [5]
+    const currentUser = await getSession();
+
+    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts page
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
+
+    // 3. Query all active drafts specifically for this establishment [5]
     const rawDrafts = await prisma.recipeDraft.findMany({
-        where: { restaurant_id: CURRENT_RESTAURANT_ID },
+        where: { restaurant_id: currentUser!.restaurantId! }, // Tenant Isolation
         orderBy: { created_at: "desc" },
     });
 
@@ -41,13 +46,13 @@ export default async function DraftsQueuePage() {
                     </div>
                     <div className="mt-4 md:mt-0 flex gap-2 font-mono">
                         <Link
-                            href="/owner/submit"
+                            href="/submit"
                             className="bg-black text-white px-4 py-2 font-bold text-xs uppercase border-2 border-black rounded-none hover:bg-neutral-800 transition"
                         >
                             + Ingest Raw Recipe
                         </Link>
                         <Link
-                            href="/owner/recipes"
+                            href="/recipes"
                             className="bg-white text-black px-4 py-2 font-bold text-xs uppercase border-2 border-black rounded-none hover:bg-neutral-50 transition"
                         >
                             Active Portfolio
@@ -71,12 +76,12 @@ export default async function DraftsQueuePage() {
                             >
                                 <div className="space-y-2 max-w-2xl">
                                     <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs font-bold text-neutral-400">
-                      ID: #{draft.id}
-                    </span>
+                                        <span className="font-mono text-xs font-bold text-neutral-400">
+                                            ID: #{draft.id}
+                                        </span>
                                         <span className="font-mono text-[10px] text-neutral-500">
-                      {new Date(draft.created_at).toLocaleString()}
-                    </span>
+                                            {new Date(draft.created_at).toLocaleString()}
+                                        </span>
                                         <StatusBadge status={draft.status} />
                                     </div>
 
@@ -93,12 +98,12 @@ export default async function DraftsQueuePage() {
 
                                 <div className="w-full md:w-auto flex items-center justify-end">
                                     {draft.status === DraftStatus.RESOLVED ? (
-                                        <Link
-                                            href={`/owner/drafts/${draft.id}`}
+                                        <a
+                                            href={`/owner/drafts/${draft.id}`} // Forced native browser navigation
                                             className="w-full md:w-auto text-center bg-green-500 text-black border-2 border-black px-4 py-2 font-mono text-xs font-bold uppercase rounded-none hover:bg-green-600 transition"
                                         >
                                             Resolve Mappings &rarr;
-                                        </Link>
+                                        </a>
                                     ) : draft.status === DraftStatus.PROCESSING ? (
                                         <div className="w-full md:w-auto text-center border-2 border-black bg-yellow-100 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none animate-pulse">
                                             Processing AI...

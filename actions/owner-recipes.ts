@@ -1,10 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { assertUserAccess, SessionUser } from "@/lib/security";
+import { assertUserAccess } from "@/lib/security";
 import { Prisma, RecipeStatus, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { serializePrisma } from "@/lib/serialize";
+import {SessionUser} from "@/lib/auth";
 
 interface FetchRecipesQuery {
     status?: RecipeStatus;

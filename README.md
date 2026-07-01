@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🥑 musical_guacamole 🥑
 
-## Getting Started
+Welcome to our project! We are building a robust, secure, and multi-tenant restaurant management system with a focus on compliance and efficiency.
 
-First, run the development server:
+---
 
+## ✨ Project Overview
+
+This project is an **Enterprise B2B SaaS** platform designed for the Jordanian culinary market. We ensure that every restaurant (tenant) has total data isolation and security, backed by a modern, brutalist aesthetic.
+
+## 🛠 Tech Stack
+
+* **Framework**: Next.js 16 (App Router)
+* **Language**: TypeScript
+* **ORM/Database**: Prisma + PostgreSQL
+* **Styling**: Tailwind CSS
+* **Infrastructure**: Turbopack & Edge Runtime
+
+## 🛡 Security Architecture
+
+* **Layer 1 (Middleware):** Acts as a high-speed middleware, resolving tenant subdomains and injecting secure headers.
+* **Layer 2 (Root Layout):** Resolves the tenant context using a centralized Resolver pattern.
+* **Layer 3 (Guardrails):** Enforces strict identity, role, and tenant-match checks on every request.
+
+---
+
+## 🚀 Getting Started
+
+1. **Clone the repository**
+2. **Install dependencies**:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Run the development server**:
+```bash
+npm run dev
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
 
-## Learn More
 
-To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 💖 Credits & Tools
 
-## Deploy on Vercel
+* **Sara**: Tech Lead
+* **Rima**: General Manager
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+*Built with love for culinary excellence! 🥘*

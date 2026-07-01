@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { initializeStorageBucket } from "../lib/s3-service";
 
 // Setup driver adapter for serverless/pg pooling environments
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -18,7 +19,6 @@ async function main() {
     console.log(`🌱 Seeding expanded localized testing dataset...`);
 
     // 1. Clean up existing records safely to prevent runtime seeding unique violations
-    // We added KitchenControlProfile to the teardown pipeline
     await prisma.auditLog.deleteMany({});
     await prisma.recipeVersion.deleteMany({});
     await prisma.recipeIngredient.deleteMany({});
@@ -31,52 +31,54 @@ async function main() {
 
     console.log('🧹 Cleaned database tables.');
 
+    // Initialize storage bucket for uploads
+    try {
+        await initializeStorageBucket();
+    } catch (err) {
+        console.error("❌ Failed to initialize storage bucket (uploads may not work until MinIO is reachable):", err);
+    }
+
     // ==========================================
     // 2. CREATE USERS (Platform Staff & Authorities)
     // ==========================================
-    const adminSara = await prisma.user.upsert({
-        where: { email: 'sara@platform.com' },
-        update: {},
-        create: { email: 'sara@platform.com', password_hash: '123456', role: Role.platform_admin, full_name: 'Sara', phone_number: '+962791111111' }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const adminSara = await prisma.user.create({
+        data: { email: 'sara@platform.com', password_hash: '123456', role: Role.platform_admin, full_name: 'Sara', phone_number: '+962791111111' }
     });
 
-    const adminRima = await prisma.user.upsert({
-        where: { email: 'rima@platform.com' },
-        update: {},
-        create: { email: 'rima@platform.com', password_hash: '123456', role: Role.platform_admin, full_name: 'Rima', phone_number: '+962792222222' }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const adminRima = await prisma.user.create({
+        data: { email: 'rima@platform.com', password_hash: '123456', role: Role.platform_admin, full_name: 'Rima', phone_number: '+962792222222' }
     });
 
-    const auditorMaha = await prisma.user.upsert({
-        where: { email: 'maha@jfda.gov.jo' },
-        update: {},
-        create: { email: 'maha@jfda.gov.jo', password_hash: '123456', role: Role.nutritionist_auditor, full_name: 'Dr. Maha', phone_number: '+962793333333' }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const auditorMaha = await prisma.user.create({
+        data: { email: 'maha@jfda.gov.jo', password_hash: '123456', role: Role.nutritionist_auditor, full_name: 'Dr. Maha', phone_number: '+962793333333' }
     });
 
-    const officerDeema = await prisma.user.upsert({
-        where: { email: 'deema@jfda.gov.jo' },
-        update: {},
-        create: { email: 'deema@jfda.gov.jo', password_hash: '123456', role: Role.jfda_officer, full_name: 'Deema Officer', phone_number: '+962794444444' }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const officerDeema = await prisma.user.create({
+        data: { email: 'deema@jfda.gov.jo', password_hash: '123456', role: Role.jfda_officer, full_name: 'Deema Officer', phone_number: '+962794444444' }
     });
 
     // ==========================================
     // 3. CREATE USERS (Restaurant Owners)
     // ==========================================
-    const ownerLeen = await prisma.user.upsert({
-        where: { email: 'leen@dumplings.com' },
-        update: {},
-        create: { email: 'leen@dumplings.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Leen', phone_number: '+962795555555' }
+    const ownerLeen = await prisma.user.create({
+        data: { email: 'leen@dumplings.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Leen', phone_number: '+962795555555' }
     });
 
-    const ownerMira = await prisma.user.upsert({
-        where: { email: 'mira@morningcafe.com' },
-        update: {},
-        create: { email: 'mira@morningcafe.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Mira', phone_number: '+962796666666' }
+    const ownerMira = await prisma.user.create({
+        data: { email: 'mira@morningcafe.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Mira', phone_number: '+962796666666' }
     });
 
-    const ownerAdam = await prisma.user.upsert({
-        where: { email: 'adam@leanburgers.com' },
-        update: {},
-        create: { email: 'adam@leanburgers.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Adam', phone_number: '+962797777777' }
+    const ownerAdam = await prisma.user.create({
+        data: { email: 'adam@leanburgers.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Adam', phone_number: '+962797777777' }
+    });
+
+    // FIX CODE: Create a completely distinct owner user account to avoid 1:1 unique constraint on dev-tenant
+    const ownerDev = await prisma.user.create({
+        data: { email: 'dev-owner@localhost.com', password_hash: '123456', role: Role.restaurant_owner, full_name: 'Development Default Owner', phone_number: '+962790000000' }
     });
 
     console.log('👤 Seeded administrative and owner user accounts.');
@@ -109,14 +111,14 @@ async function main() {
     // --- Restaurant 1: The "Perfect" Case (Active, Level 3) ---
     const restLeen = await prisma.restaurant.create({
         data: {
-            slug: 'leen-dumplings', // ADDED TENANT SLUG
+            slug: 'leen-dumplings',
             business_name: 'Leen Dumplings & Breakfast',
             address_line: 'Rainbow Street, Amman',
             cert_status: CertStatus.ACTIVE,
             cert_level: CertLevel.LEVEL_3,
             owner_id: ownerLeen.id,
             profile: {
-                create: { // ADDED KITCHEN CONTROL PROFILE
+                create: {
                     hasDedicatedAllergenZones: true,
                     usesStandardizedRecipes: true
                 }
@@ -129,7 +131,7 @@ async function main() {
         data: {
             restaurant_id: restLeen.id,
             meal_name: 'Avocado Sun-Dried Tomato Toast',
-            image_url: 'https://images.storage.jo/meals/avocado-toast.jpg',
+            image_url: 'https://images.unsplash.com/photo-1541532713592-79a0317b6b77?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Sliced avocado laid over warm sourdough toast garnished with sun-dried local tomatoes.',
             calories: 320.00,
             protein: 12.00,
@@ -170,7 +172,7 @@ async function main() {
         data: {
             restaurant_id: restLeen.id,
             meal_name: 'Chicken Dumplings (6pcs)',
-            image_url: 'https://images.storage.jo/meals/chicken-dumpling.jpg',
+            image_url: 'https://images.unsplash.com/photo-1496116211227-724f4247504a?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Hand-rolled dumpling wraps loaded with seasoned minced chicken breast, steamed to order.',
             calories: 250.00,
             protein: 20.00,
@@ -188,14 +190,14 @@ async function main() {
     // --- Restaurant 2: The "Newbie" Case (Pending, Level 1) ---
     const restMira = await prisma.restaurant.create({
         data: {
-            slug: 'mira-morning-cafe', // ADDED TENANT SLUG
+            slug: 'mira-morning-cafe',
             business_name: 'Mira Morning Cafe',
             address_line: 'Weibdeh, Amman',
             cert_status: CertStatus.PENDING,
             cert_level: CertLevel.LEVEL_1,
             owner_id: ownerMira.id,
             profile: {
-                create: { // ADDED KITCHEN CONTROL PROFILE
+                create: {
                     hasDedicatedAllergenZones: false,
                     usesStandardizedRecipes: true
                 }
@@ -207,7 +209,7 @@ async function main() {
         data: {
             restaurant_id: restMira.id,
             meal_name: 'Iced Turkish Coffee',
-            image_url: 'https://images.storage.jo/meals/iced-coffee.jpg',
+            image_url: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Traditional unfiltered chilled coffee served over clear cracked ice with a drops of cardamom.',
             calories: 80.00,
             protein: 1.00,
@@ -226,7 +228,7 @@ async function main() {
         data: {
             restaurant_id: restMira.id,
             meal_name: 'Low Fat Greek Yogurt Parfait',
-            image_url: 'https://images.storage.jo/meals/yogurt-parfait.jpg',
+            image_url: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Strained low fat yogurt topped with organic mountain honey syrup and dried raisins.',
             calories: 150.00,
             protein: 15.00,
@@ -240,14 +242,14 @@ async function main() {
     // --- Restaurant 3: The "Trouble" Case (Revoked) ---
     const restAdam = await prisma.restaurant.create({
         data: {
-            slug: 'adam-lean-burgers', // ADDED TENANT SLUG
+            slug: 'adam-lean-burgers',
             business_name: 'Adam 93 Lean Burgers',
             address_line: 'Abdoun, Amman',
             cert_status: CertStatus.REVOKED,
             cert_level: CertLevel.LEVEL_2,
             owner_id: ownerAdam.id,
             profile: {
-                create: { // ADDED KITCHEN CONTROL PROFILE
+                create: {
                     hasDedicatedAllergenZones: false,
                     usesStandardizedRecipes: false
                 }
@@ -259,7 +261,7 @@ async function main() {
         data: {
             restaurant_id: restAdam.id,
             meal_name: '93% Lean Beef Burger',
-            image_url: 'https://images.storage.jo/meals/lean-burger.jpg',
+            image_url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Flame grilled lean ground brisket served on cross-cut whole wheat buns.',
             calories: 450.00,
             protein: 40.00,
@@ -271,6 +273,26 @@ async function main() {
     });
 
     console.log(`✅ Seeded 3 diverse relational restaurant datasets with structured recipe links, slugs, and kitchen profiles.`);
+
+    // --- Restaurant 4: Development Default Tenant ---
+    const restDevTenant = await prisma.restaurant.create({
+        data: {
+            slug: 'dev-tenant',
+            business_name: 'Development Test Restaurant',
+            address_line: 'localhost',
+            cert_status: CertStatus.ACTIVE,
+            cert_level: CertLevel.LEVEL_3,
+            owner_id: ownerDev.id, // FIX: Using dedicated unassigned unique ID
+            profile: {
+                create: {
+                    hasDedicatedAllergenZones: true,
+                    usesStandardizedRecipes: true
+                }
+            }
+        }
+    });
+
+    console.log(`✅ Seeded development default tenant for localhost testing (ID: ${restDevTenant.id}).`);
 }
 
 main()
@@ -280,5 +302,5 @@ main()
     })
     .finally(async () => {
         await prisma.$disconnect();
-        await pool.end(); // Safely shut down pg pooling pipeline
+        await pool.end();
     });

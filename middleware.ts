@@ -1,79 +1,63 @@
-// src/middleware.ts
-import { NextRequest, NextResponse } from "next/server";
-
-export async function middleware(req: NextRequest) {
-    const url = req.nextUrl;
-    const hostname = req.headers.get("host") || "";
-
-    const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000";
-
-    // 1. Bypass Next.js internals, API routes, and static assets
-    if (
-        hostname === ROOT_DOMAIN ||
-        url.pathname.startsWith("/api") ||
-        url.pathname.startsWith("/_next") ||
-        url.pathname.includes(".")
-    ) {
-        return NextResponse.next();
-    }
-
-    // 2. Extract subdomain: 'auditor.localhost:3000' -> 'auditor'
-    const subdomain = hostname.replace(`.${ROOT_DOMAIN}`, "");
-
-    // 3. LAYER: Auditor Portal
-    if (subdomain === "auditor") {
-        if (!url.pathname.startsWith("/auditor")) {
-            url.pathname = `/auditor${url.pathname}`;
-        }
-        return NextResponse.rewrite(url);
-    }
-
-    // 4. LAYER: JFDA Portal
-    if (subdomain === "jfda") {
-        if (!url.pathname.startsWith("/jfda")) {
-            url.pathname = `/jfda${url.pathname}`;
-        }
-        return NextResponse.rewrite(url);
-    }
-
-    // 5. LAYER: Root Domain Fallback (e.g., standard localhost:3000)
-    // Useful if you have a landing page or want them to hit /auth/login
-    if (hostname === ROOT_DOMAIN || subdomain === ROOT_DOMAIN) {
-        return NextResponse.next();
-    }
-
-    // 6. LAYER: Restaurant Tenants (Owner Portal)
-    const protocol = req.nextUrl.protocol || (hostname.includes("localhost") ? "http:" : "https:");
-
-    try {
-        const tenantRes = await fetch(`${protocol}//${ROOT_DOMAIN}/api/tenant/${subdomain}`);
-
-        if (!tenantRes.ok) {
-            return NextResponse.rewrite(new URL("/404", req.url));
-        }
-
-        const tenant = await tenantRes.json();
-
-        const requestHeaders = new Headers(req.headers);
-        requestHeaders.set("x-tenant-id", tenant.id.toString());
-        requestHeaders.set("x-tenant-slug", tenant.slug);
-
-        // INVISIBLE REWRITE: Map clean URLs to the /owner directory
-        if (!url.pathname.startsWith("/owner")) {
-            url.pathname = `/owner${url.pathname}`;
-        }
-
-        return NextResponse.rewrite(url, {
-            request: {
-                headers: requestHeaders,
-            },
-        });
-    } catch (error) {
-        console.error("Middleware fetch error:", error);
-        return NextResponse.next();
-    }
-}
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export const config = {
-    matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+    matcher: ["/((?!api/auth|_next/static|_next/image|_static|favicon.ico|robots.txt|sitemap.xml).*)"],
 };
+
+export function middleware(request: NextRequest) {
+    const url = request.nextUrl.clone();
+    const hostname = request.headers.get("host") || "";
+    const { pathname } = url;
+
+    // 1. Inject the request path so Server Components can inspect route scopes [4]
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", pathname);
+
+    // 2. Resolve tenant slug
+    const rootDomains = ["localhost:3000", "musical-guacamole.jo", "jfda-compliance.gov.jo"];
+    let tenantSlug = "";
+
+    const isLocalhost = hostname.includes("localhost");
+    const parsedHost = hostname.split(".");
+
+    if (isLocalhost) {
+        if (parsedHost.length > 1 && parsedHost[0] !== "www") {
+            tenantSlug = parsedHost[0];
+        } else if (process.env.NODE_ENV === "development") {
+            tenantSlug = "dev-tenant";
+        }
+    } else {
+        const matchedRoot = rootDomains.find(d => hostname.endsWith(d));
+        if (matchedRoot && hostname !== matchedRoot) tenantSlug = hostname.replace(`.${matchedRoot}`, "");
+    }
+
+    // 3. Logic: If no tenant slug is identified, pass standard routing unchanged
+    if (!tenantSlug || tenantSlug === "www" || tenantSlug === "admin") {
+        return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+
+    // Inject secure tenant subdomain header [4]
+    requestHeaders.set("x-tenant-slug", tenantSlug);
+
+    // 4. Invisible Routing System
+    const routeRewrites: Record<string, string> = {
+        "/dashboard": "/owner/dashboard",
+        "/submit": "/owner/submit",
+        "/drafts": "/owner/drafts",
+        "/recipes": "/owner/recipes",
+    };
+
+    if (routeRewrites[pathname]) {
+        url.pathname = routeRewrites[pathname];
+        return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    }
+
+    // Dynamic rewrite for /drafts/5 -> /owner/drafts/5 and /recipes/5 -> /owner/recipes/5
+    if (pathname.match(/^\/(drafts|recipes)\/\d+$/)) {
+        url.pathname = `/owner${pathname}`;
+        return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    }
+
+    return NextResponse.next({ request: { headers: requestHeaders } });
+}
