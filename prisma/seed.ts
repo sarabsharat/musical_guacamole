@@ -18,10 +18,13 @@ async function main() {
     console.log(`🌱 Seeding expanded localized testing dataset...`);
 
     // 1. Clean up existing records safely to prevent runtime seeding unique violations
-    // Cascade settings or table ordering ensures smooth dependency teardown
+    // We added KitchenControlProfile to the teardown pipeline
+    await prisma.auditLog.deleteMany({});
     await prisma.recipeVersion.deleteMany({});
     await prisma.recipeIngredient.deleteMany({});
     await prisma.recipe.deleteMany({});
+    await prisma.recipeDraft.deleteMany({});
+    await prisma.kitchenControlProfile.deleteMany({});
     await prisma.ingredientReference.deleteMany({});
     await prisma.restaurant.deleteMany({});
     await prisma.user.deleteMany({});
@@ -106,15 +109,22 @@ async function main() {
     // --- Restaurant 1: The "Perfect" Case (Active, Level 3) ---
     const restLeen = await prisma.restaurant.create({
         data: {
+            slug: 'leen-dumplings', // ADDED TENANT SLUG
             business_name: 'Leen Dumplings & Breakfast',
             address_line: 'Rainbow Street, Amman',
             cert_status: CertStatus.ACTIVE,
             cert_level: CertLevel.LEVEL_3,
             owner_id: ownerLeen.id,
+            profile: {
+                create: { // ADDED KITCHEN CONTROL PROFILE
+                    hasDedicatedAllergenZones: true,
+                    usesStandardizedRecipes: true
+                }
+            }
         }
     });
 
-    // Seed Recipe 1: Approved Avocado Toast with explicit Ingredients
+    // Seed Recipe 1: Approved Avocado Toast
     const avocadoToast = await prisma.recipe.create({
         data: {
             restaurant_id: restLeen.id,
@@ -175,15 +185,21 @@ async function main() {
         }
     });
 
-
     // --- Restaurant 2: The "Newbie" Case (Pending, Level 1) ---
     const restMira = await prisma.restaurant.create({
         data: {
+            slug: 'mira-morning-cafe', // ADDED TENANT SLUG
             business_name: 'Mira Morning Cafe',
             address_line: 'Weibdeh, Amman',
             cert_status: CertStatus.PENDING,
             cert_level: CertLevel.LEVEL_1,
-            owner_id: ownerMira.id
+            owner_id: ownerMira.id,
+            profile: {
+                create: { // ADDED KITCHEN CONTROL PROFILE
+                    hasDedicatedAllergenZones: false,
+                    usesStandardizedRecipes: true
+                }
+            }
         }
     });
 
@@ -221,15 +237,21 @@ async function main() {
         }
     });
 
-
     // --- Restaurant 3: The "Trouble" Case (Revoked) ---
     const restAdam = await prisma.restaurant.create({
         data: {
+            slug: 'adam-lean-burgers', // ADDED TENANT SLUG
             business_name: 'Adam 93 Lean Burgers',
             address_line: 'Abdoun, Amman',
             cert_status: CertStatus.REVOKED,
             cert_level: CertLevel.LEVEL_2,
-            owner_id: ownerAdam.id
+            owner_id: ownerAdam.id,
+            profile: {
+                create: { // ADDED KITCHEN CONTROL PROFILE
+                    hasDedicatedAllergenZones: false,
+                    usesStandardizedRecipes: false
+                }
+            }
         }
     });
 
@@ -248,7 +270,7 @@ async function main() {
         }
     });
 
-    console.log(`✅ Seeded 3 diverse relational restaurant datasets with structured recipe links.`);
+    console.log(`✅ Seeded 3 diverse relational restaurant datasets with structured recipe links, slugs, and kitchen profiles.`);
 }
 
 main()

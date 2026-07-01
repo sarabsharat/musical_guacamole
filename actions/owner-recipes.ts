@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { serializePrisma } from "@/lib/serialize";
 
 interface FetchRecipesQuery {
-    tenantId: number;
     status?: RecipeStatus;
     search?: string;
     page: number;
@@ -34,12 +33,19 @@ interface RecipeSnapshot {
  * Securely queries paginated recipes bound to the owner's workspace context.
  * Serializes returned database primitives for RSC compatibility.
  */
-export async function getOwnerRecipes(query: FetchRecipesQuery) {
+export async function getOwnerRecipes(currentUser: SessionUser, query: FetchRecipesQuery) {
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+
+    if (!currentUser.restaurantId) {
+        throw new Error("Security Violation: No tenant context found.");
+    }
+
     try {
         const skip = (query.page - 1) * query.limit;
 
         const whereClause: Prisma.RecipeWhereInput = {
-            restaurant_id: query.tenantId,
+            restaurant_id: currentUser.restaurantId,
             ...(query.status ? { status: query.status } : {}),
             ...(query.search
                 ? {
@@ -81,26 +87,29 @@ export async function revertToRecipeVersion(
     recipeId: number,
     versionId: number
 ) {
-    try {
-        await assertUserAccess(
-            currentUser,
-            [Role.restaurant_owner],
-            currentUser.restaurantId
-        );
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
 
-        // Fetch snapshot
+    if (!currentUser.restaurantId) {
+        throw new Error("Security Violation: No tenant context found.");
+    }
+
+    try {
         const versionRecord = await prisma.recipeVersion.findFirst({
-            where: { id: versionId, recipe_id: recipeId },
+            where: {
+                id: versionId,
+                recipe_id: recipeId,
+                recipe: { restaurant_id: currentUser.restaurantId }
+            },
         });
 
         if (!versionRecord) {
-            return { success: false, message: "Record not found." };
+            return { success: false, message: "Record not found or access denied." };
         }
 
         const snapshot = versionRecord.snapshot as unknown as RecipeSnapshot;
 
         await prisma.$transaction(async (tx) => {
-            // Bring back old fields
             await tx.recipe.update({
                 where: { id: recipeId },
                 data: {

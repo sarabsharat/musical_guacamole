@@ -1,17 +1,12 @@
 import React from "react";
+import { redirect } from "next/navigation";
 import { getOwnerRecipes } from "@/actions/owner-recipes";
 import { RecipeFilters } from "@/components/owner/recipe-filters";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { SessionUser } from "@/lib/security";
-import { RecipeStatus } from "@prisma/client";
+import { assertUserAccess } from "@/lib/security";
+import { Role, RecipeStatus } from "@prisma/client";
+import { getSession } from "@/lib/auth"; // Your new secure utility
 import Link from "next/link";
-
-// Mock user session matching our seeded Al-Quds Amman Kitchen
-const MOCK_OWNER_SESSION: SessionUser = {
-    id: 1,
-    role: "restaurant_owner",
-    restaurantId: 1,
-};
 
 interface PageProps {
     searchParams: Promise<{
@@ -22,15 +17,26 @@ interface PageProps {
 }
 
 export default async function RecipesPage({ searchParams }: PageProps) {
-    // Await searchParams in modern Next.js App Router [1]
+    // 1. Get the authenticated session
+    const currentUser = await getSession();
+
+    if (!currentUser) {
+        redirect("/auth/login");
+    }
+
+    // 2. 🚨 PAGE-LEVEL GUARDRAIL 🚨
+    // Ensures this user is an owner and matches the requested restaurant
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+
+    // 3. Await searchParams in modern Next.js App Router
     const params = await searchParams;
     const currentStatus = params.status as RecipeStatus | undefined;
     const searchQuery = params.search || "";
     const currentPage = Number(params.page) || 1;
 
-    // Retrieve isolated data bound to this owner's restaurant ID
-    const response = await getOwnerRecipes({
-        tenantId: MOCK_OWNER_SESSION.restaurantId!,
+    // 4. Retrieve isolated data
+    // Note: We no longer pass tenantId here; the action uses the trusted currentUser session!
+    const response = await getOwnerRecipes(currentUser, {
         status: currentStatus,
         search: searchQuery,
         page: currentPage,

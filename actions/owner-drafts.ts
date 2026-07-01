@@ -13,14 +13,14 @@ export async function submitRawDraft(
     currentUser: SessionUser,
     payload: { raw_text: string; image_url: string }
 ) {
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+
+    if (!currentUser.restaurantId) {
+        throw new Error("Security Violation: No tenant context found.");
+    }
+
     try {
-        await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
-
-        if (!currentUser.restaurantId) {
-            return { success: false, message: "No tenant restaurant associated with this user." };
-        }
-
-        // 1. Create processing draft record
         const draft = await prisma.recipeDraft.create({
             data: {
                 restaurant_id: currentUser.restaurantId,
@@ -30,11 +30,9 @@ export async function submitRawDraft(
             },
         });
 
-        // 2. Process with the Extraction Engine
         try {
             const resolvedMappings = await parseAndMapUnstructuredInput(payload.raw_text);
 
-            // Save structured payload representation to draft
             await prisma.recipeDraft.update({
                 where: { id: draft.id },
                 data: {
@@ -45,7 +43,6 @@ export async function submitRawDraft(
         } catch (parseError: unknown) {
             const parseErrorMessage = parseError instanceof Error ? parseError.message : String(parseError);
 
-            // Gracefully capture resolution pipeline failures
             await prisma.recipeDraft.update({
                 where: { id: draft.id },
                 data: {
@@ -75,25 +72,28 @@ interface ConfirmDraftPayload {
 
 /**
  * Commits a resolved RecipeDraft into an official compliance Recipe.
- * Runs Math Guardrails directly on Database parameters.
  */
 export async function resolveDraftToRecipe(
     currentUser: SessionUser,
     payload: ConfirmDraftPayload
 ) {
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+
+    if (!currentUser.restaurantId) {
+        throw new Error("Security Violation: No tenant context found.");
+    }
+
     try {
-        await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
-
-        if (!currentUser.restaurantId) {
-            return { success: false, message: "No tenant restaurant associated with this user." };
-        }
-
         const draft = await prisma.recipeDraft.findFirst({
-            where: { id: payload.draft_id, restaurant_id: currentUser.restaurantId },
+            where: {
+                id: payload.draft_id,
+                restaurant_id: currentUser.restaurantId
+            },
         });
 
         if (!draft) {
-            return { success: false, message: "Draft context not found." };
+            return { success: false, message: "Draft context not found or cross-tenant access denied." };
         }
 
         let totalCalories = new Prisma.Decimal(0);
@@ -101,7 +101,6 @@ export async function resolveDraftToRecipe(
         let totalCarbs = new Prisma.Decimal(0);
         let totalFat = new Prisma.Decimal(0);
 
-        // Create a Set to collect unique allergens automatically
         const aggregatedAllergens = new Set<string>();
 
         const ingredientRefs = await prisma.ingredientReference.findMany({
@@ -111,7 +110,6 @@ export async function resolveDraftToRecipe(
         const refMap = new Map(ingredientRefs.map((r) => [r.id, r]));
 
         await prisma.$transaction(async (tx) => {
-            // 1. Create the base recipe
             const recipe = await tx.recipe.create({
                 data: {
                     restaurant_id: currentUser.restaurantId!,
@@ -126,7 +124,6 @@ export async function resolveDraftToRecipe(
                 },
             });
 
-            // 2. Loop through ingredients to do the math AND collect allergens
             for (const rawIng of payload.ingredients) {
                 const ref = refMap.get(rawIng.ingredient_id);
                 if (!ref) throw new Error(`Missing ingredient record: ${rawIng.ingredient_id}`);
@@ -137,7 +134,6 @@ export async function resolveDraftToRecipe(
                 totalCarbs = totalCarbs.add(ref.carbs_per_g.mul(grams));
                 totalFat = totalFat.add(ref.fat_per_g.mul(grams));
 
-                // Pull the allergens array from the database reference and add to our Set
                 if (ref.allergens && ref.allergens.length > 0) {
                     ref.allergens.forEach((allergen: string) => {
                         aggregatedAllergens.add(allergen);
@@ -154,7 +150,6 @@ export async function resolveDraftToRecipe(
                 });
             }
 
-            // 3. Update the recipe with final math AND the flattened allergen array
             await tx.recipe.update({
                 where: { id: recipe.id },
                 data: {
@@ -162,14 +157,12 @@ export async function resolveDraftToRecipe(
                     protein: totalProtein,
                     carbs: totalCarbs,
                     total_fat: totalFat,
-                    detected_allergens: Array.from(aggregatedAllergens), // Convert Set back to Array
+                    detected_allergens: Array.from(aggregatedAllergens),
                 },
             });
 
-            // Remove the draft now that it's successfully migrated
             await tx.recipeDraft.delete({ where: { id: payload.draft_id } });
 
-            // Log compliance events for administrative/JFDA audits
             await tx.auditLog.create({
                 data: {
                     actor_id: currentUser.id,
