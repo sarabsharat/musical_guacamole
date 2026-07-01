@@ -1,22 +1,23 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { assertUserAccess, SessionUser } from "@/lib/security";
+import { assertUserAccess } from "@/lib/security";
 import { parseAndMapUnstructuredInput } from "@/lib/ai-pipeline";
 import { Role, DraftStatus, RecipeStatus, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { SessionUser, getSession } from "@/lib/auth";
 
 /**
  * Generates a recipe draft from raw input text and triggers the parsing queue.
  */
-export async function submitRawDraft(
-    currentUser: SessionUser,
-    payload: { raw_text: string; image_url: string }
-) {
-    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+export async function submitRawDraft(payload: { raw_text: string; image_url: string }) {
+    // Resolve session server-side so client callers don't have to pass a mocked user object.
+    const currentUser = await getSession();
 
-    if (!currentUser.restaurantId) {
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
+
+    if (!currentUser || !currentUser.restaurantId) {
         throw new Error("Security Violation: No tenant context found.");
     }
 
@@ -53,6 +54,7 @@ export async function submitRawDraft(
         }
 
         revalidatePath("/owner/drafts");
+        revalidatePath("/drafts");
         return { success: true, message: "Raw preparation notes ingested successfully." };
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Failed to submit draft.";
@@ -74,13 +76,18 @@ interface ConfirmDraftPayload {
  * Commits a resolved RecipeDraft into an official compliance Recipe.
  */
 export async function resolveDraftToRecipe(
-    currentUser: SessionUser,
+    currentUser: SessionUser | null,
     payload: ConfirmDraftPayload
 ) {
-    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
+    // If the caller didn't pass a resolved session (client callers), resolve it server-side
+    if (!currentUser) {
+        currentUser = await getSession();
+    }
 
-    if (!currentUser.restaurantId) {
+    // 🚨 GUARDRAIL OUTSIDE THE TRY/CATCH 🚨
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
+
+    if (!currentUser || !currentUser.restaurantId) {
         throw new Error("Security Violation: No tenant context found.");
     }
 
@@ -180,8 +187,8 @@ export async function resolveDraftToRecipe(
             });
         });
 
-        revalidatePath("/owner/recipes");
         revalidatePath("/owner/drafts");
+        revalidatePath("/drafts");
         return { success: true, message: "Recipe created, math verified, and allergens flagged." };
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Failed to resolve draft recipe.";

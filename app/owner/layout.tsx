@@ -6,10 +6,8 @@ export default function RootLayout({
     children: ReactNode;
 }) {
     return (
-        <html lang="en">
-        <body className="bg-white text-black min-h-screen">
-        {children}
-        </body>
-        </html>
+        <div className="owner-container">
+            {children}
+        </div>
     );
 }

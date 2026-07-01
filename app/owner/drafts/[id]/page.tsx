@@ -1,11 +1,12 @@
+// app/owner/drafts/[id]/page.tsx
 import React from "react";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
 import { DraftResolutionForm } from "@/components/owner/draft-resolution-form";
-import { assertUserAccess } from "@/lib/security";
 import { Role } from "@prisma/client";
 import { getSession } from "@/lib/auth";
+import { assertUserAccess } from "@/lib/security";
 
 interface PageProps {
     params: Promise<{
@@ -14,22 +15,13 @@ interface PageProps {
 }
 
 export default async function DraftResolutionPage({ params }: PageProps) {
-    // 1. Fetch the central mock session
+    // 1. Fetch the unified session [5]
     const currentUser = await getSession();
 
-    if (!currentUser) {
-        redirect("/auth/login");
-    }
+    // 2. 🚨 SECURITY: Guardrail checking
+    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
-    // 2. 🚨 PAGE-LEVEL GUARDRAIL 🚨
-    // Kicks out anyone who isn't a restaurant owner or is missing a tenant ID
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
-
-    if (!currentUser.restaurantId) {
-        throw new Error("Security Violation: No tenant context found.");
-    }
-
-    // 3. Resolve dynamic routing params
+    // 3. Resolve dynamic route parameters [1]
     const { id } = await params;
     const draftId = parseInt(id, 10);
 
@@ -41,7 +33,7 @@ export default async function DraftResolutionPage({ params }: PageProps) {
     const draftData = await prisma.recipeDraft.findFirst({
         where: {
             id: draftId,
-            restaurant_id: currentUser.restaurantId,
+            restaurant_id: currentUser!.restaurantId!,
         },
     });
 
@@ -49,19 +41,19 @@ export default async function DraftResolutionPage({ params }: PageProps) {
         return notFound();
     }
 
-    // 5. Fetch the custom localized reference library for mapping dropdowns
+    // 5. Fetch the custom localized reference library for dropdown mappings
     const references = await prisma.ingredientReference.findMany({
         orderBy: { name: "asc" },
     });
 
-    // 6. Serialize data safely across Next.js boundary
+    // 6. Serialize database primitives for client rendering boundary safety [2]
     const serializedDraft = serializePrisma(draftData);
     const serializedReferences = serializePrisma(references);
 
     return (
         <div className="min-h-screen bg-neutral-100 p-8 text-black">
             <DraftResolutionForm
-                currentUser={currentUser}
+                currentUser={currentUser!}
                 draft={serializedDraft}
                 references={serializedReferences}
             />

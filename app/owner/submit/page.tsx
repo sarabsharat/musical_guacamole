@@ -3,20 +3,24 @@
 import React, { useState } from "react";
 import { submitRawDraft } from "@/actions/owner-drafts";
 import { DragDropUploader } from "@/components/owner/drag-drop-uploader";
-import { SessionUser } from "@/lib/security";
 import Link from "next/link";
-
-const MOCK_OWNER_SESSION: SessionUser = {
-    id: 1,
-    role: "restaurant_owner",
-    restaurantId: 1, // Matches seeded Al-Quds Kitchen
-};
+// Session is resolved server-side by server actions; no client-side session needed here.
 
 export default function SubmitRecipeForm() {
     const [rawText, setRawText] = useState("");
     const [imageUrl, setImageUrl] = useState("");
     const [loading, setLoading] = useState(false);
+    const [imageUploading, setImageUploading] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    // BUG FIX: DragDropUploader keeps its own internal `previewUrl` state.
+    // On a successful submit we cleared this page's `imageUrl`, but the
+    // uploader itself never got told to reset, so its preview image stayed
+    // on screen even though the form had already been cleared — the next
+    // submission would then silently go out with image_url: "" while the
+    // owner still saw (and assumed they were reusing) the old preview.
+    // Bumping this key forces a clean remount of the uploader whenever we
+    // reset the form.
+    const [uploaderKey, setUploaderKey] = useState(0);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -24,11 +28,20 @@ export default function SubmitRecipeForm() {
             setStatusMessage({ type: "error", text: "Please enter your recipe preparation notes." });
             return;
         }
+        // BUG FIX: previously nothing stopped the owner from hitting submit
+        // while an image upload was still in flight, so the draft could be
+        // created with a stale/empty image_url even though a preview was
+        // already showing.
+        if (imageUploading) {
+            setStatusMessage({ type: "error", text: "Please wait for the image upload to finish before submitting." });
+            return;
+        }
 
         setLoading(true);
         setStatusMessage(null);
 
-        const result = await submitRawDraft(MOCK_OWNER_SESSION, {
+        // submitRawDraft now resolves the server-side session itself; clients should only send the payload.
+        const result = await submitRawDraft({
             raw_text: rawText,
             image_url: imageUrl,
         });
@@ -42,6 +55,7 @@ export default function SubmitRecipeForm() {
             });
             setRawText("");
             setImageUrl("");
+            setUploaderKey((k) => k + 1);
         } else {
             setStatusMessage({
                 type: "error",
@@ -106,9 +120,16 @@ export default function SubmitRecipeForm() {
                             2. Recipe Image Reference
                         </label>
                         <DragDropUploader
-                            currentUser={MOCK_OWNER_SESSION}
-                            onUploadSuccess={(url) => setImageUrl(url)}
-                            onUploadError={(err) => setStatusMessage({ type: "error", text: err })}
+                            key={uploaderKey}
+                            onUploadStart={() => setImageUploading(true)}
+                            onUploadSuccess={(url) => {
+                                setImageUploading(false);
+                                setImageUrl(url);
+                            }}
+                            onUploadError={(err) => {
+                                setImageUploading(false);
+                                setStatusMessage({ type: "error", text: err });
+                            }}
                         />
                     </div>
 
@@ -116,10 +137,10 @@ export default function SubmitRecipeForm() {
                     <div className="flex gap-4 pt-4 border-t-2 border-black">
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || imageUploading}
                             className="flex-1 bg-black text-white py-3 font-mono text-sm font-bold uppercase border-2 border-black rounded-none transition hover:bg-neutral-800 disabled:opacity-45"
                         >
-                            {loading ? "Processing..." : "Trigger AI Extraction"}
+                            {loading ? "Processing..." : imageUploading ? "Waiting for image..." : "Trigger AI Extraction"}
                         </button>
                         <Link
                             href="/owner/drafts"
