@@ -39,53 +39,70 @@ enum NotificationType {
   CERT_REJECTION
 }
 
+enum DraftStatus {
+  PROCESSING
+  RESOLVED
+  FAILED
+}
+
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
+  id            Int         @id @default(autoincrement())
+  email         String      @unique
   password_hash String
   role          Role
   full_name     String
   phone_number  String
-  created_at    DateTime       @default(now())
-  restaurants   Restaurant[]
+  created_at    DateTime    @default(now())
+  restaurant    Restaurant?
 }
 
 model Restaurant {
-  id            Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  // --- NEW MULTI-TENANT FIELDS ---
+  slug          String  @unique // e.g., "burger-lab" for burger-lab.yourapp.jo
+  custom_domain String? @unique // e.g., "nutrition.burgerlab.com"
+  plan_tier     String  @default("free")
+  // -------------------------------
+
   business_name String
   address_line  String
-  cert_status   CertStatus      @default(NONE)
-  cert_level    CertLevel       @default(LEVEL_1)
-  owner_id      Int
-  owner         User            @relation(fields: [owner_id], references: [id])
+  cert_status   CertStatus              @default(NONE)
+  cert_level    CertLevel               @default(LEVEL_1)
+  owner_id      Int                     @unique
+  owner         User                    @relation(fields: [owner_id], references: [id])
   recipes       Recipe[]
+  profile       KitchenControlProfile[]
+  recipeDrafts  RecipeDraft[]
 }
 
 model IngredientReference {
-  id               Int                @id @default(autoincrement())
-  name             String             @unique // e.g., "Kmaj Bread (Local Bakery X)"
-  calories_per_g   Decimal
-  protein_per_g    Decimal
-  carbs_per_g      Decimal
-  fat_per_g        Decimal
-  recipe_links     RecipeIngredient[]
+  id             Int                @id @default(autoincrement())
+  name           String             @unique // e.g., "Kmaj Bread (Local Bakery X)"
+  calories_per_g Decimal
+  protein_per_g  Decimal
+  carbs_per_g    Decimal
+  fat_per_g      Decimal
+  allergens      String[]           @default([])
+  recipe_links   RecipeIngredient[]
 }
 
 model Recipe {
-  id                Int                @id @default(autoincrement())
-  restaurant_id     Int
-  restaurant        Restaurant         @relation(fields: [restaurant_id], references: [id])
-  meal_name         String
-  image_url         String
-  preparation_notes String
-  calories          Decimal
-  protein           Decimal
-  carbs             Decimal
-  total_fat         Decimal
-  status            RecipeStatus       @default(PENDING)
-  rejection_reason  String?
-  ingredients       RecipeIngredient[]
-  versions          RecipeVersion[]
+  id                 Int                @id @default(autoincrement())
+  restaurant_id      Int
+  restaurant         Restaurant         @relation(fields: [restaurant_id], references: [id])
+  meal_name          String
+  image_url          String
+  preparation_notes  String
+  calories           Decimal
+  protein            Decimal
+  carbs              Decimal
+  total_fat          Decimal
+  status             RecipeStatus       @default(PENDING)
+  rejection_reason   String?
+  detected_allergens String[]           @default([])
+  ingredients        RecipeIngredient[]
+  versions           RecipeVersion[]
 }
 
 model RecipeIngredient {
@@ -94,14 +111,48 @@ model RecipeIngredient {
   recipe             Recipe              @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
   ingredient_id      Int
   ingredient_item    IngredientReference @relation(fields: [ingredient_id], references: [id])
-  user_stated_amount String              // e.g., "2 pieces", "a splash"
-  normalized_grams   Decimal             // Scaled weight after mapping
+  user_stated_amount String // e.g., "2 pieces", "a splash"
+  normalized_grams   Decimal // Scaled weight after mapping
+}
+
+model KitchenControlProfile {
+  id           Int @id @default(autoincrement())
+  restaurantId Int @unique
+
+  // Specific toggles for the two controls you want
+  hasDedicatedAllergenZones Boolean @default(false)
+  usesStandardizedRecipes   Boolean @default(false)
+
+  updatedAt  DateTime   @updatedAt
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
 }
 
 model RecipeVersion {
   id         Int      @id @default(autoincrement())
   recipe_id  Int
   recipe     Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
-  snapshot   Json     // Immutable copy of the approved recipe data
+  snapshot   Json // Immutable copy of the approved recipe data
   created_at DateTime @default(now())
+}
+
+model RecipeDraft {
+  id             Int         @id @default(autoincrement())
+  restaurant_id  Int
+  restaurant     Restaurant  @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+  raw_input_text String
+  image_url      String?
+  extracted_json Json? // Intermediate JSON payload from the AI extraction pipeline
+  status         DraftStatus @default(PROCESSING)
+  error_message  String?
+  created_at     DateTime    @default(now())
+}
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  actor_id      Int // Links to User.id
+  restaurant_id Int? // Linked Context
+  recipe_id     Int? // Linked Context
+  action        String // e.g., "RECIPE_APPROVED", "CERT_REVOKED", "RECIPE_REVERTED"
+  payload       Json? // Detailed diffs of changes
+  created_at    DateTime @default(now())
 }

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: musical_guacamole
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: sara_admin
+      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: musicale_guacamole
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Local AWS S3 Emulation (MinIO for Image Uploads)
+  minio:
+    image: minio/minio
+    container_name: musical_guacamole_img
+    ports:
+      - "9000:9000" # The API port your Next.js Server Action talks to
+      - "9001:9001" # The Web UI port you open in your browser
+    environment:
+      MINIO_ROOT_USER: sara_admin
+      MINIO_ROOT_PASSWORD: 12345678
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  minio_data:
