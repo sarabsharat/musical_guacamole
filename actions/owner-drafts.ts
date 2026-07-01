@@ -189,6 +189,13 @@ export async function resolveDraftToRecipe(
 
         revalidatePath("/owner/drafts");
         revalidatePath("/drafts");
+        // BUG FIX: this call was dropped in a recent edit. Committing a draft
+        // creates/updates a real Recipe record, so the owner's recipes list
+        // (both the real path and its rewritten short URL) must also be
+        // revalidated, or it'll keep showing stale data until the cache
+        // naturally expires.
+        revalidatePath("/owner/recipes");
+        revalidatePath("/recipes");
         return { success: true, message: "Recipe created, math verified, and allergens flagged." };
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Failed to resolve draft recipe.";

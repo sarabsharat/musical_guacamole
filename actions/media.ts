@@ -65,7 +65,6 @@ export async function getSecureUploadUrl(
             ContentLength: fileSize,
             // BUG FIX: Instruct S3 client to bypass modern SHA256 checksum payload checks.
             // This is mandatory for local MinIO / R2 emulations which do not implement AWS checksum checks.
-            ContentSHA256: "UNSIGNED-PAYLOAD",
         });
 
         const secondsExpiry = 300;

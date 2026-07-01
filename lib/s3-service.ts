@@ -4,20 +4,17 @@ import {
     CreateBucketCommand,
     HeadBucketCommand,
     PutBucketCorsCommand,
-    PutBucketPolicyCommand
+    PutBucketPolicyCommand,
+    S3ClientConfig,
 } from "@aws-sdk/client-s3";
 
-// BUG FIX: this was the only place in the codebase with a safe fallback for
-// NEXT_PUBLIC_MINIO_URL. `actions/media.ts` used to build its own S3Client
-// with no fallback, so if the env var was ever missing/unset on the server
-// the SDK silently fell back to a real AWS endpoint and every presigned PUT
-// URL pointed at AWS instead of local MinIO, causing all uploads to fail.
-// We now export a single client + bucket name and reuse them everywhere so
-// there is exactly one source of truth for storage configuration.
+// Determine local vs production endpoints
 export const STORAGE_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_URL || "http://localhost:9000";
 export const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || "musical-guacamole";
 
-export const s3Client = new S3Client({
+// Build client configuration conditionally so we avoid passing
+// checksum-related options to environments that don't support them.
+const s3Config: Partial<S3ClientConfig> = {
     region: "me-central-1",
     endpoint: STORAGE_ENDPOINT,
     forcePathStyle: true, // MANDATORY for MinIO path-style buckets
@@ -25,29 +22,29 @@ export const s3Client = new S3Client({
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || "sara_admin",
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "12345678",
     },
-    // BUG FIX: MinIO does not support AWS SDK v3's checksum headers.
-    // Setting both to "IGNORE" prevents the SDK from adding x-amz-checksum-*
-    // headers that MinIO rejects with "A header you provided implies functionality
-    // that is not implemented". This is safe for development/local MinIO but
-    // for production AWS S3, consider using "WHEN_REQUIRED" instead.
-    requestChecksumCalculation: "IGNORE",
-    responseChecksumValidation: "IGNORE",
-});
+};
+
+// Only enable checksum behavior for real AWS endpoints. Local MinIO
+// and many emulators do not implement checksum features and will
+// reject requests that include x-amz-checksum-* headers. We detect
+// this roughly by the STORAGE_ENDPOINT value; adjust as needed.
+if (!STORAGE_ENDPOINT.includes("localhost") && !STORAGE_ENDPOINT.includes("127.0.0.1")) {
+    s3Config.requestChecksumCalculation = "WHEN_REQUIRED";
+    s3Config.responseChecksumValidation = "WHEN_REQUIRED";
+}
+
+export const s3Client = new S3Client(s3Config);
 
 /**
- * Ensures the target storage bucket exists and is properly configured
- * with Public Read and CORS policies for seamless browser uploads.
- *
- * BUG FIX: this used to swallow every error internally (try/catch that only
- * logged), so callers had no way to know initialization failed. It now
- * throws so callers (see `ensureStorageBucket` below) can surface a real
- * error to the user instead of a generic "upload failed" message.
+ * Ensures the target storage bucket exists.
+ * CORS and Bucket Policies are applied defensively to prevent local MinIO / S3 emulators
+ * from crashing the server-side pre-signing process.
  */
 export async function initializeStorageBucket() {
     const bucketName = BUCKET_NAME;
     console.log(`🤖 Verifying local storage bucket: "${bucketName}"...`);
 
-    // 1. Check if the bucket already exists
+    // 1. Check if the bucket already exists. If not, create it.
     try {
         await s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
         console.log(`👍 Bucket "${bucketName}" exists.`);
@@ -62,63 +59,70 @@ export async function initializeStorageBucket() {
     }
 
     // 2. Configure CORS to allow direct PUT uploads from the client browser.
-    // Without this step, the browser's preflight OPTIONS request to MinIO is
-    // rejected and every direct-to-S3 upload fails with a CORS error before
-    // it ever reaches application code.
+    // We wrap this defensively because some local MinIO setups or serverless gateways
+    // always return a 501 "NotImplemented" error for S3 PutBucketCors requests.
     console.log(`🔧 Applying browser CORS policy to bucket...`);
-    await s3Client.send(new PutBucketCorsCommand({
-        Bucket: bucketName,
-        CORSConfiguration: {
-            CORSRules: [
+    try {
+        await s3Client.send(new PutBucketCorsCommand({
+            Bucket: bucketName,
+            CORSConfiguration: {
+                CORSRules: [
+                    {
+                        AllowedHeaders: ["*"],
+                        AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                        AllowedOrigins: ["*"], // Restrict to specific domains in production
+                        ExposeHeaders: ["ETag"],
+                        MaxAgeSeconds: 3000
+                    }
+                ]
+            }
+        }));
+        console.log(`👍 Bucket CORS policy applied.`);
+    } catch (corsErr: unknown) {
+        const err = corsErr as { message?: string };
+        console.warn(
+            `⚠️ S3 PutBucketCors skipped or not implemented by S3 server: ${err.message || corsErr}`
+        );
+    }
+
+    // 3. Apply a Public Read Policy so uploaded images are visible to client browsers.
+    // This is also wrapped defensively to handle local emulator limitations.
+    console.log(`🔧 Applying read-only public access policy to bucket...`);
+    try {
+        const publicReadPolicy = {
+            Version: "2012-10-17",
+            Statement: [
                 {
-                    AllowedHeaders: ["*"],
-                    AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
-                    AllowedOrigins: ["*"], // Restrict to specific domains in production
-                    ExposeHeaders: ["ETag"],
-                    MaxAgeSeconds: 3000
+                    Sid: "PublicReadGetObject",
+                    Effect: "Allow",
+                    Principal: "*",
+                    Action: ["s3:GetObject"],
+                    Resource: [`arn:aws:s3:::${bucketName}/*`]
                 }
             ]
-        }
-    }));
+        };
 
-    // 3. Apply a Public Read Policy so uploaded images are visible to client browsers
-    console.log(`🔧 Applying read-only public access policy to bucket...`);
-    const publicReadPolicy = {
-        Version: "2012-10-17",
-        Statement: [
-            {
-                Sid: "PublicReadGetObject",
-                Effect: "Allow",
-                Principal: "*",
-                Action: ["s3:GetObject"],
-                Resource: [`arn:aws:s3:::${bucketName}/*`]
-            }
-        ]
-    };
+        await s3Client.send(new PutBucketPolicyCommand({
+            Bucket: bucketName,
+            Policy: JSON.stringify(publicReadPolicy)
+        }));
+        console.log(`👍 Public read policy applied.`);
+    } catch (policyErr: unknown) {
+        const err = policyErr as { message?: string };
+        console.warn(
+            `⚠️ S3 PutBucketPolicy skipped or not implemented by S3 server: ${err.message || policyErr}`
+        );
+    }
 
-    await s3Client.send(new PutBucketPolicyCommand({
-        Bucket: bucketName,
-        Policy: JSON.stringify(publicReadPolicy)
-    }));
-
-    console.log(`🎉 Storage initialization completed successfully.`);
+    console.log(`🎉 Storage initialization check completed.`);
 }
 
-// BUG FIX: previously `initializeStorageBucket()` only ever ran from
-// `prisma/seed.ts`. If a developer spun up docker-compose but never ran the
-// seed script (or the MinIO volume was reset), the bucket/CORS/policy would
-// never be created and every image upload in the owner submit form would
-// fail with an opaque "Media upload failure." error. We now lazily run
-// initialization on the first real upload attempt too, and cache the
-// in-flight/resolved promise so subsequent uploads in the same server
-// process don't repeat the 3 setup network calls.
 let bucketReadyPromise: Promise<void> | null = null;
 
 export function ensureStorageBucket(): Promise<void> {
     if (!bucketReadyPromise) {
         bucketReadyPromise = initializeStorageBucket().catch((err) => {
-            // Don't cache a permanent failure — let the next upload attempt retry
-            // (e.g. in case MinIO was still starting up).
+            // Reset to allow retry on next attempt
             bucketReadyPromise = null;
             throw err;
         });

@@ -5,8 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
 import { DraftResolutionForm } from "@/components/owner/draft-resolution-form";
 import { Role } from "@prisma/client";
-import { getSession } from "@/lib/auth";
-import { assertUserAccess } from "@/lib/security";
+import { getSession, assertUserAccess } from "@/lib/security";
+
+export const revalidate = 0;
 
 interface PageProps {
     params: Promise<{
@@ -15,13 +16,14 @@ interface PageProps {
 }
 
 export default async function DraftResolutionPage({ params }: PageProps) {
-    // 1. Fetch the unified session [5]
+    // 1. Fetch the session
     const currentUser = await getSession();
 
-    // 2. 🚨 SECURITY: Guardrail checking
+    // 2. 🚨 UNIFIED PAGE-LEVEL GUARDRAIL 🚨
+    // This handles session existence, role checking, and tenant header validation in one call
     await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
-    // 3. Resolve dynamic route parameters [1]
+    // 3. Resolve dynamic routing params
     const { id } = await params;
     const draftId = parseInt(id, 10);
 
@@ -30,6 +32,7 @@ export default async function DraftResolutionPage({ params }: PageProps) {
     }
 
     // 4. Fetch the Draft using strict tenant isolation
+    // currentUser is guaranteed to be non-null by assertUserAccess
     const draftData = await prisma.recipeDraft.findFirst({
         where: {
             id: draftId,
@@ -41,12 +44,12 @@ export default async function DraftResolutionPage({ params }: PageProps) {
         return notFound();
     }
 
-    // 5. Fetch the custom localized reference library for dropdown mappings
+    // 5. Fetch the custom localized reference library
     const references = await prisma.ingredientReference.findMany({
         orderBy: { name: "asc" },
     });
 
-    // 6. Serialize database primitives for client rendering boundary safety [2]
+    // 6. Serialize data
     const serializedDraft = serializePrisma(draftData);
     const serializedReferences = serializePrisma(references);
 
