@@ -1,4 +1,4 @@
-// app/auditor/queue/page.tsx
+// app/auditor/queue/page.tsx.tsx
 import React from "react";
 import { getPendingAuditQueue } from "@/actions/auditor";
 import { getSession, assertUserAccess } from "@/lib/security";

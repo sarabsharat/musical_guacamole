@@ -1,4 +1,4 @@
-// src/app/auditor/audit/[restaurantId]/page.tsx
+// src/app/auditor/audit/[restaurantId]/page.tsx.tsx
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";

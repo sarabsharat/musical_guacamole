@@ -1,4 +1,4 @@
-// src/app/owner/recipes/[id]/page.tsx
+// src/app/owner/recipes.ts/[id]/page.tsx.tsx
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -87,18 +87,29 @@ export default async function RecipeDetailPage({ params }: PageProps) {
 
                         <div className="space-y-2">
                             <div className="flex items-center gap-3">
-                <span className="bg-black text-white px-2 py-0.5 text-xs font-bold uppercase rounded-none">
-                  Meal Record File
-                </span>
+                                <span className="bg-black text-white px-2 py-0.5 text-xs font-bold uppercase rounded-none">
+                                    Meal Record File
+                                </span>
                                 <StatusBadge status={serializedRecipe.status} />
+
+                                {/* ADDED EDIT ACTION FOR THE OWNER */}
+                                {(serializedRecipe.status === "REJECTED" || serializedRecipe.status === "REVOKED") &&(<Link
+                                        href={`/owner/recipes/${serializedRecipe.id}/edit`}
+                                        className="bg-yellow-400 hover:bg-black hover:text-white border-2 border-black font-extrabold uppercase text-[10px] px-2.5 py-0.5 rounded-none transition"
+                                    >
+                                        Edit Recipe
+                                    </Link>
+                                )}
                             </div>
+
+                            {/* RESTORED MISSING TITLE AND NOTES */}
                             <h1 className="text-3xl font-extrabold uppercase tracking-tight">
                                 {serializedRecipe.meal_name}
                             </h1>
                             <p className="text-xs text-neutral-500 italic bg-neutral-50 p-3 border border-neutral-300">
                                 &ldquo;{serializedRecipe.preparation_notes}&rdquo;
                             </p>
-                        </div>
+                        </div> {/* THIS WAS THE MISSING CLOSING TAG */}
 
                         {/* Macros Panel */}
                         <div className="border-4 border-black p-4 bg-neutral-50 rounded-none space-y-4">
@@ -168,6 +179,12 @@ export default async function RecipeDetailPage({ params }: PageProps) {
                                 </div>
                             </div>
                         )}
+                        <Link
+                            href={`/owner/recipes/${serializedRecipe.id}/edit`}
+                            className="bg-yellow-400 hover:bg-black hover:text-white border-2 border-black font-extrabold uppercase text-[10px] px-2.5 py-0.5 rounded-none transition"
+                        >
+                            Edit Recipe
+                        </Link>
 
                         {/* Compliance Version Control Rollbacks */}
                         <div className="border-4 border-black p-4 bg-white rounded-none space-y-4">

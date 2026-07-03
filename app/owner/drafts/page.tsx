@@ -1,4 +1,4 @@
-// app/owner/drafts/page.tsx
+// app/owner/drafts/page.tsx.tsx
 import React from "react";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
@@ -13,7 +13,7 @@ export default async function DraftsQueuePage() {
     // 1. Resolve user session context dynamically [5]
     const currentUser = await getSession();
 
-    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts page
+    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts page.tsx
     await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
     // 3. Query all active drafts specifically for this establishment [5]
@@ -98,12 +98,12 @@ export default async function DraftsQueuePage() {
 
                                 <div className="w-full md:w-auto flex items-center justify-end">
                                     {draft.status === DraftStatus.RESOLVED ? (
-                                        <a
-                                            href={`/owner/drafts/${draft.id}`} // Forced native browser navigation
+                                        <Link
+                                            href={`/owner/drafts/${draft.id}`}
                                             className="w-full md:w-auto text-center bg-green-500 text-black border-2 border-black px-4 py-2 font-mono text-xs font-bold uppercase rounded-none hover:bg-green-600 transition"
                                         >
                                             Resolve Mappings &rarr;
-                                        </a>
+                                        </Link>
                                     ) : draft.status === DraftStatus.PROCESSING ? (
                                         <div className="w-full md:w-auto text-center border-2 border-black bg-yellow-100 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none animate-pulse">
                                             Processing AI...
