@@ -78,7 +78,8 @@ model Restaurant {
 
 model IngredientReference {
   id             Int                @id @default(autoincrement())
-  name           String             @unique // e.g., "Kmaj Bread (Local Bakery X)"
+  name           String             @unique
+  name_ar        String
   calories_per_g Decimal
   protein_per_g  Decimal
   carbs_per_g    Decimal

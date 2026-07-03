@@ -7,13 +7,8 @@ import { assertUserAccess } from "@/lib/security";
 import { Role } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { s3Client, ensureStorageBucket, BUCKET_NAME } from "@/lib/s3-service";
+import {PreSignedUrlResponse} from "@/lib/shared-types/api";
 
-export type PreSignedUrlResponse = {
-    success: boolean;
-    message: string;
-    uploadUrl?: string;
-    fileKey?: string;
-};
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB

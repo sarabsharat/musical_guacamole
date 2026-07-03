@@ -6,6 +6,7 @@ import { assertUserAccess, getSession } from "@/lib/security";
 import { Role, CertStatus, CertLevel, RecipeStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { serializePrisma } from "@/lib/serialize";
+import {revokeSchema} from "@/lib/validations/jfda-schema";
 
 /**
  * Returns a list of restaurants that have cleared Level 2 or Level 3 compliance checks.
@@ -35,57 +36,63 @@ export async function getJfdaCertifiedRegistry() {
             message: "Certified registry registry loaded successfully.",
             data: serializePrisma(registry),
         };
-    } catch (error: any) {
-        return { success: false, message: error.message || "Failed to load JFDA registry." };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load JFDA registry.";
+        return { success: false, message };
     }
 }
 
 /**
  * Immediate regulatory revocation of certificate credentials.
- * Demotes the establishment to Level 1 and revokes all active recipes.
+ * Demotes the establishment to Level 1 and revokes all active recipes.ts.
  */
 export async function revokeRestaurantCompliance(restaurantId: number, reason: string) {
     const session = await getSession();
     await assertUserAccess(session, [Role.jfda_officer, Role.platform_admin]);
 
+    // 🛡️ Zod Validation
+    const validated = revokeSchema.safeParse({ restaurantId, reason });
+    if (!validated.success) return { success: false, message: validated.error.issues[0].message };
+
     try {
-        if (!reason.trim()) {
-            return { success: false, message: "A formal regulatory revocation reason is mandatory." };
+        const restaurant = await prisma.restaurant.findUnique({
+            where: { id: restaurantId },
+            select: { cert_status: true },
+        });
+
+        if (!restaurant) return { success: false, message: "Restaurant not found." };
+        if (restaurant.cert_status === CertStatus.REVOKED) {
+            return { success: false, message: "This establishment is already revoked." };
         }
 
         await prisma.$transaction(async (tx) => {
-            // 1. Demote Restaurant
             await tx.restaurant.update({
                 where: { id: restaurantId },
-                data: {
-                    cert_status: CertStatus.REVOKED,
-                    cert_level: CertLevel.LEVEL_1, // Demoted to base state
-                },
+                data: { cert_status: CertStatus.REVOKED, cert_level: CertLevel.LEVEL_1 },
             });
 
-            // 2. Revoke all active recipes
             await tx.recipe.updateMany({
                 where: { restaurant_id: restaurantId },
                 data: {
                     status: RecipeStatus.REVOKED,
-                    rejection_reason: `JFDA Compliance Enforcement: ${reason}`,
+                    rejection_reason: `JFDA Compliance Enforcement: ${validated.data.reason}`,
                 },
             });
 
-            // 3. Log compliance revocation audit
             await tx.auditLog.create({
                 data: {
                     actor_id: session!.id,
                     restaurant_id: restaurantId,
                     action: "REGULATORY_COMPLIANCE_REVOKED",
-                    payload: { reason },
+                    payload: { reason: validated.data.reason },
                 },
             });
         });
 
         revalidatePath("/jfda/registry");
         return { success: true, message: "Restaurant certification successfully revoked." };
-    } catch (error: any) {
-        return { success: false, message: error.message || "Failed to execute regulatory revocation." };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load JFDA registry.";
+        return { success: false, message };
     }
 }

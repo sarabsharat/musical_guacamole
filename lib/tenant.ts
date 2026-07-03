@@ -51,3 +51,10 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
         return null;
     }
 });
+
+export async function getTenantBySlug(slug: string) {
+    return prisma.restaurant.findUnique({
+        where: { slug },
+        include: { owner: true },
+    });
+}

@@ -1,4 +1,4 @@
-// app/auditor/queue/[id]/page.tsx
+// app/auditor/queue/[id]/page.tsx.tsx
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";

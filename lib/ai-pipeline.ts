@@ -49,7 +49,7 @@ export async function parseAndMapUnstructuredInput(
 async function callMockLlmExtractionPipeline(text: string): Promise<ExtractedIngredientDraft[]> {
     // Simulating a 1-second delay so you can test your Next.js loading spinners
     await new Promise((resolve) => setTimeout(resolve, 1000));
-
+    console.log(text);
     return [
         {
             raw_text: "Kmaj Bread",

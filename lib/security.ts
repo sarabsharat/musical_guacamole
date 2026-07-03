@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import { SessionUser, getSession } from "@/lib/auth"; // Consolidated import
+import {getSession } from "@/lib/auth";
+import {SessionUser} from "@/lib/shared-types"; // Consolidated import
 
 export { getSession }; // Re-export for standard layout dependencies
 

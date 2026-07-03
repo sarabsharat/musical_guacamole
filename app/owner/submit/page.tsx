@@ -13,7 +13,7 @@ export default function SubmitRecipeForm() {
     const [imageUploading, setImageUploading] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     // BUG FIX: DragDropUploader keeps its own internal `previewUrl` state.
-    // On a successful submit we cleared this page's `imageUrl`, but the
+    // On a successful submit we cleared this page.tsx's `imageUrl`, but the
     // uploader itself never got told to reset, so its preview image stayed
     // on screen even though the form had already been cleared — the next
     // submission would then silently go out with image_url: "" while the
