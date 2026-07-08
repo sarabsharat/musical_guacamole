@@ -1,19 +1,23 @@
-// src/app/layout.tsx
+// src/app/layout.tsx - FIXED VERSION
 import React from "react";
 import { getTenantContext } from "@/lib/tenant";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { LogoutButton } from "@/components/ui/logout-button";
+import AuthProvider from "@/lib/utils/AuthProvider";
 
 interface RootLayoutProps {
     children: React.ReactNode;
 }
 
 export default async function RootLayout({ children }: RootLayoutProps) {
+
     const tenant = await getTenantContext();
+    console.log("🏢 Tenant in layout:", tenant);
 
     const headerList = await headers();
     const pathname = headerList.get("x-pathname") || "";
+    const tenantSlug = headerList.get("x-tenant-slug");
 
     const isJfdaRoute = pathname.startsWith("/jfda");
     const isAdministrativeRoute =
@@ -21,13 +25,22 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         pathname.startsWith("/jfda") ||
         pathname.startsWith("/auth");
 
-    if (!tenant && !isAdministrativeRoute && typeof window !== "undefined" && window.location.host.split(".").length > 1) {
+    const isLandingPage = !tenantSlug && pathname === "/";
+
+    // 🔧 FIXED: Server-side validation - check if we're on a tenant subdomain but tenant doesn't exist
+    // This prevents people from accessing invalid subdomains
+    if (tenantSlug && !tenant && !isAdministrativeRoute) {
+        console.error(`❌ Tenant slug "${tenantSlug}" was injected by middleware but not found in database`);
         return notFound();
     }
 
     return (
         <html lang="en">
         <body className="min-h-screen bg-neutral-100 font-mono antialiased text-black">
+        <AuthProvider>
+            {isLandingPage && (
+                <main>{children}</main>
+            )}
 
         {tenant && !isAdministrativeRoute ? (
             // ── Tenant (owner) layout ──
@@ -73,7 +86,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
                 <main className="min-h-screen">{children}</main>
             </>
         )}
-
+        </AuthProvider>
         </body>
         </html>
     );

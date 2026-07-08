@@ -63,7 +63,7 @@ export default async function PhysicalAuditPage({ params }: PageProps) {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black font-mono">
+        <div   ="min-h-screen bg-neutral-100 p-8 text-black font-mono">
             <div className="mx-auto max-w-3xl border-4 border-black bg-white p-6 rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-6">
 
                 {/* Navigation Breadcrumbs */}

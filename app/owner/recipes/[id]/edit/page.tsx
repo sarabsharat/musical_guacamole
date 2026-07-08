@@ -6,6 +6,7 @@ import { serializePrisma } from "@/lib/serialize";
 import { getSession, assertUserAccess } from "@/lib/security";
 import { RecipeEditForm } from "@/components/owner/recipe-edit-form";
 import { Role } from "@prisma/client";
+import {requireOwnerAuth} from "@/lib/RequireOwnerAuth";
 
 interface PageProps {
     params: Promise<{
@@ -15,13 +16,8 @@ interface PageProps {
 
 export default async function RecipeEditPage({ params }: PageProps) {
 
-    const currentUser = await getSession();
+    const { currentUser, restaurantId } = await requireOwnerAuth();
 
-
-    // 2. 🚨 SECURITY: Page-level guardrail
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
-
-    // 3. Resolve dynamic parameters [1]
     const { id } = await params;
     const recipeId = parseInt(id, 10);
 
@@ -33,7 +29,7 @@ export default async function RecipeEditPage({ params }: PageProps) {
     const recipe = await prisma.recipe.findFirst({
         where: {
             id: recipeId,
-            restaurant_id: currentUser!.restaurantId!,
+            restaurant_id: restaurantId,
         },
         include: {
             ingredients: {
@@ -49,7 +45,10 @@ export default async function RecipeEditPage({ params }: PageProps) {
     }
 
     // 5. Fetch reference ingredient library
-    const references = await prisma.ingredientReference.findMany({ orderBy: { name: "asc" } });
+
+    const references = await prisma.ingredientReference.findMany({
+        where: {id: restaurantId},
+        orderBy: { name: "asc" } });
 
     // 6. Serialize database objects [2]
     const serializedRecipe = serializePrisma(recipe);

@@ -17,6 +17,7 @@ export default async function DraftResolutionPage({ params }: PageProps) {
     // 1. Fetch user session [5]
     const currentUser = await getSession();
 
+
     // 2. 🚨 SECURITY: Ensure owner is logged in and belongs to this tenant [3]
     await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
@@ -50,7 +51,7 @@ export default async function DraftResolutionPage({ params }: PageProps) {
     const serializedReferences = serializePrisma(references);
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
+        <div>
             <DraftResolutionForm
                 currentUser={currentUser!}
                 draft={serializedDraft}

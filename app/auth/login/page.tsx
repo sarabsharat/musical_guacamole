@@ -1,9 +1,46 @@
-// src/app/auth/login/page.tsx
+// src/app/auth/login/page.tsx - FIXED VERSION
 "use client";
 
 import React, { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+
+/**
+ * Helper to construct the redirect URL dynamically based on hostname
+ * Supports both localhost subdomains and production domains
+ */
+function getRedirectUrl(slug: string, hostname: string, path: string = "/submit"): string {
+    try {
+        const url = new URL(window.location.href);
+
+        // Get current protocol
+        const protocol = url.protocol; // "http:" or "https:"
+
+        if (hostname.includes("localhost")) {
+            // Local development: slug.localhost:3000/path
+            const port = url.port ? `:${url.port}` : "";
+            return `${protocol}//${slug}.localhost${port}${path}`;
+        } else {
+            // Production: slug.yourapp.jo/path or custom domain
+            // Extract root domain (e.g., "musical-guacamole.jo" from "leen-dumplings.musical-guacamole.jo")
+            const parts = hostname.split(".");
+
+            // If more than 2 parts, it's a subdomain - reconstruct with slug
+            if (parts.length > 2) {
+                // Remove the current slug if present
+                const rootDomain = parts.slice(1).join(".");
+                return `${protocol}//${slug}.${rootDomain}${path}`;
+            } else {
+                // Root domain - just add slug
+                return `${protocol}//${slug}.${hostname}${path}`;
+            }
+        }
+    } catch (error) {
+        console.error("Error constructing redirect URL:", error);
+        // Fallback to /dashboard on same host
+        return `${path}`;
+    }
+}
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -27,8 +64,21 @@ export default function LoginPage() {
             if (result?.error) {
                 setError("Invalid email or password. Verify your seed credentials.");
             } else {
-                // Navigate to the intermediate redirection resolver page
-                router.push("/auth/success");
+                // 🔧 FIXED: Fetch session and construct dynamic redirect URL
+                const sessionRes = await fetch("/api/auth/session");
+                const session = await sessionRes.json();
+
+                if (session?.user?.slug) {
+                    // Get current hostname to support both localhost and production
+                    const hostname = window.location.hostname;
+                    const redirectUrl = getRedirectUrl(session.user.slug, hostname, "/submit");
+
+                    console.log("🟢 Redirecting to:", redirectUrl);
+                    window.location.href = redirectUrl;
+                } else {
+                    // Fallback for non-owner users
+                    window.location.href = "/dashboard";
+                }
             }
         } catch (err: any) {
             setError("Authentication connection failure.");
@@ -38,52 +88,49 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-neutral-100 p-4 font-mono text-black">
+        <div >
             <form
                 onSubmit={handleSubmit}
-                className="border-4 border-black p-6 bg-white max-w-md w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-4"
+
             >
-                <div className="border-b-2 border-black pb-2">
-                    <span className="bg-red-500 text-white px-2 py-0.5 text-[10px] font-bold uppercase rounded-none border border-black">
+                <div >
+                    <span >
                         SECURE CONTROL PANEL
                     </span>
-                    <h1 className="text-2xl font-extrabold uppercase mt-2">Sign In</h1>
+                    <h1 >Sign In</h1>
                 </div>
 
                 {error && (
-                    <div className="border-2 border-red-600 bg-red-50 p-3 text-xs uppercase text-red-700 font-bold rounded-none">
+                    <div >
                         {error}
                     </div>
                 )}
 
-                <div className="space-y-1">
-                    <label className="block text-xs uppercase font-bold">Email Address</label>
+                <div >
+                    <label >Email Address</label>
                     <input
                         required
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="leen@dumplings.com"
-                        className="w-full border-2 border-black p-2 text-xs rounded-none bg-white focus:outline-none"
                     />
                 </div>
 
                 <div className="space-y-1">
-                    <label className="block text-xs uppercase font-bold">Password</label>
+                    <label >Password</label>
                     <input
                         required
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••"
-                        className="w-full border-2 border-black p-2 text-xs rounded-none bg-white focus:outline-none"
-                    />
+                     />
                 </div>
 
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-black text-white py-3 text-xs font-bold uppercase border-2 border-black rounded-none cursor-pointer hover:bg-neutral-800 transition disabled:opacity-45"
                 >
                     {loading ? "Authenticating..." : "Establish Secure Session"}
                 </button>

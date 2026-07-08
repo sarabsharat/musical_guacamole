@@ -4,14 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import {getSession } from "@/lib/auth";
-import {SessionUser} from "@/lib/shared-types"; // Consolidated import
+import {SessionUser} from "@/lib/shared-types";
 
-export { getSession }; // Re-export for standard layout dependencies
+export { getSession };
 
-/**
- * Guardrail Enforcement: Verifies identity, roles, and tenancy parameters.
- * Throws redirect errors immediately (bubbling outside try/catch) on failure [3].
- */
+
+//is this user allowd to be on this subdomain ?
 export async function assertUserAccess(
     currentUser: SessionUser | null,
     allowedRoles: Role[],
@@ -39,12 +37,12 @@ export async function assertUserAccess(
         }
     }
 
-    // 4. Verification of Header Tenancy Integrity
-    // Compare session details against the tenant identifier resolved by Layer 1 (Middleware)
+  //check middleware injection,
     const headerList = await headers();
     const injectedTenantSlug = headerList.get("x-tenant-slug");
 
     if (currentUser.role === Role.restaurant_owner && injectedTenantSlug) {
+        //db query to check who is trying to access the subdomain and confirm their actual slug
         const restaurant = await prisma.restaurant.findUnique({
             where: { id: currentUser.restaurantId },
             select: { slug: true },

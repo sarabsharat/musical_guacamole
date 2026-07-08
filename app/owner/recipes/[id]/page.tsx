@@ -69,25 +69,25 @@ export default async function RecipeDetailPage({ params }: PageProps) {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-4 sm:p-8 text-black font-mono">
-            <div className="mx-auto max-w-5xl border-4 border-black bg-white p-6 rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-6">
+        <div >
+            <div>
 
                 {/* Navigation Header */}
-                <div className="mb-4 font-mono text-xs uppercase flex space-x-2 border-b-2 border-black pb-2">
+                <div >
                     <Link href="/owner/recipes" className="underline hover:text-red-500">Menu Portfolio</Link>
                     <span>/</span>
-                    <span className="text-neutral-500">Recipe Audit File #{serializedRecipe.id}</span>
+                    <span >Recipe Audit File #{serializedRecipe.id}</span>
                 </div>
 
                 {/* Main layout grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div >
 
                     {/* Left Column: Details, Nutrition, and Ingredients */}
-                    <div className="lg:col-span-7 space-y-6">
+                    <div >
 
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-3">
-                                <span className="bg-black text-white px-2 py-0.5 text-xs font-bold uppercase rounded-none">
+                        <div >
+                            <div >
+                                <span >
                                     Meal Record File
                                 </span>
                                 <StatusBadge status={serializedRecipe.status} />
@@ -95,64 +95,63 @@ export default async function RecipeDetailPage({ params }: PageProps) {
                                 {/* ADDED EDIT ACTION FOR THE OWNER */}
                                 {(serializedRecipe.status === "REJECTED" || serializedRecipe.status === "REVOKED") &&(<Link
                                         href={`/owner/recipes/${serializedRecipe.id}/edit`}
-                                        className="bg-yellow-400 hover:bg-black hover:text-white border-2 border-black font-extrabold uppercase text-[10px] px-2.5 py-0.5 rounded-none transition"
-                                    >
+                                     >
                                         Edit Recipe
                                     </Link>
                                 )}
                             </div>
 
                             {/* RESTORED MISSING TITLE AND NOTES */}
-                            <h1 className="text-3xl font-extrabold uppercase tracking-tight">
+                            <h1>
                                 {serializedRecipe.meal_name}
                             </h1>
-                            <p className="text-xs text-neutral-500 italic bg-neutral-50 p-3 border border-neutral-300">
+                            <p >
                                 &ldquo;{serializedRecipe.preparation_notes}&rdquo;
                             </p>
                         </div> {/* THIS WAS THE MISSING CLOSING TAG */}
 
                         {/* Macros Panel */}
-                        <div className="border-4 border-black p-4 bg-neutral-50 rounded-none space-y-4">
-                            <h2 className="text-sm font-extrabold uppercase border-b-2 border-black pb-1">
+                        <div >
+                            <h2 >
                                 Active Nutrition Ledger
                             </h2>
-                            <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                                <div className="border-2 border-black p-2 bg-white">
-                                    <div className="text-[9px] uppercase text-neutral-400">Calories</div>
-                                    <div className="text-sm font-extrabold">{serializedRecipe.calories} kcal</div>
+                            <div >
+                                <div>
+                                    <div >Calories</div>
+                                    <div>{serializedRecipe.calories} kcal</div>
                                 </div>
-                                <div className="border-2 border-black p-2 bg-white">
-                                    <div className="text-[9px] uppercase text-neutral-400">Protein</div>
-                                    <div className="text-sm font-extrabold">{serializedRecipe.protein}g</div>
+                                <div >
+                                    <div >Protein</div>
+                                    <div >{serializedRecipe.protein}g</div>
                                 </div>
-                                <div className="border-2 border-black p-2 bg-white">
-                                    <div className="text-[9px] uppercase text-neutral-400">Carbs</div>
-                                    <div className="text-sm font-extrabold">{serializedRecipe.carbs}g</div>
+                                <div >
+                                    <div >Carbs</div>
+                                    <div>{serializedRecipe.carbs}g</div>
                                 </div>
-                                <div className="border-2 border-black p-2 bg-white">
-                                    <div className="text-[9px] uppercase text-neutral-400">Total Fat</div>
-                                    <div className="text-sm font-extrabold">{serializedRecipe.total_fat}g</div>
+                                <div >
+                                    <div >Total Fat</div>
+                                    <div >{serializedRecipe.total_fat}g</div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Active Ingredients List */}
-                        <div className="border-4 border-black p-4 bg-white rounded-none space-y-3">
-                            <h3 className="text-sm font-bold uppercase border-b-2 border-black pb-1">
+                        <div >
+                            <h3 >
                                 Ingredient Composition
                             </h3>
-                            <div className="space-y-2">
+                            <div >
                                 {serializedRecipe.ingredients.map((ing: any) => (
-                                    <div key={ing.id} className="border-2 border-black p-3 text-xs flex justify-between items-center rounded-none bg-neutral-50">
+                                    <div key={ing.id} >
                                         <div>
-                                            <div className="font-bold uppercase">{ing.ingredient_item.name}</div>
-                                            <div className="text-[10px] text-neutral-400 mt-1">
+                                            <div >{ing.ingredient_item.name}</div>
+                                            <div>
                                                 Stated Amount: &ldquo;{ing.user_stated_amount}&rdquo;
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="font-extrabold">{ing.normalized_grams}g</div>
-                                            <div className="text-[9px] text-neutral-500 mt-1 font-bold">
+                                        <div >
+                                            <div >{ing.normalized_grams}g</div>
+                                            <div >
                                                 {(ing.ingredient_item.calories_per_g * ing.normalized_grams).toFixed(1)} kcal
                                             </div>
                                         </div>

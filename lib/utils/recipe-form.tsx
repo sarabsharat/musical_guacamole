@@ -36,7 +36,7 @@ export function useIngredientMapper(initialRows: IngredientRow[], references: In
 
     const livePreview = useMemo(() => calculatePreview(rows, references), [rows, references]);
 
-    return { rows, updateRowField, removeRow, addManualRow, livePreview };
+    return { rows, setRows, updateRowField, removeRow, addManualRow, livePreview };
 }
 
 // --- SHARED UI: MACRO CARD ---

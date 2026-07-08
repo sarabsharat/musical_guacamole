@@ -4,18 +4,14 @@ import React from "react";
 import { getSession, assertUserAccess } from "@/lib/security";
 import { Role } from "@prisma/client";
 import Link from "next/link";
+import {requireAuditorAuth} from "@/lib/RequireAuditorAuth";
 
 interface AuditorLayoutProps {
     children: React.ReactNode;
 }
 
 export default async function AuditorLayout({ children }: AuditorLayoutProps) {
-    // 1. Authenticate session context
-    const session = await getSession();
-
-    // 2. 🚨 SECURITY: Root-level guardrail for all auditor routes
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
-
+const {currentUser} = await requireAuditorAuth();
     return (
         <div className="flex flex-col min-h-screen bg-neutral-100 font-mono antialiased text-black">
             {/* Brutalist Auditor Header */}
@@ -29,7 +25,7 @@ export default async function AuditorLayout({ children }: AuditorLayoutProps) {
           </span>
                 </div>
                 <div className="flex items-center gap-4 text-xs font-bold">
-                    <span className="text-neutral-400">Auditor: {session?.full_name}</span>
+                    <span className="text-neutral-400">Auditor: {currentUser?.full_name}</span>
                     <Link
                         href="/auth/logout"
                         className="border-2 border-white bg-white text-black px-2.5 py-1 uppercase rounded-none hover:bg-neutral-200 transition"
