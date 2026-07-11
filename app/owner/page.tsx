@@ -1,7 +1,9 @@
+// src/app/owner/page.tsx
 import { requireOwnerAuth } from "@/lib/RequireOwnerAuth";
 import { redirect } from "next/navigation";
-export default function OwnerIndexPage() {
-    requireOwnerAuth().then(r => {
-        redirect("/owner/dashboard");
-    });
+
+export default async function OwnerIndexPage() {
+
+    await requireOwnerAuth();
+    redirect("/owner/dashboard");
 }

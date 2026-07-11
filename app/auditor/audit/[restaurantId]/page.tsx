@@ -1,10 +1,10 @@
-// src/app/auditor/audit/[restaurantId]/page.tsx.tsx
+// src/app/auditor/audit/[restaurantId]/layout.tsx.tsx
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
 import { getSession, assertUserAccess } from "@/lib/security";
-import { submitPhysicalSiteAudit } from "@/actions/auditor";
+import { submitPhysicalSiteAudit } from "@/actions/AuditorActions";
 import { Role } from "@prisma/client";
 import Link from "next/link";
 
@@ -17,7 +17,7 @@ interface PageProps {
 export default async function PhysicalAuditPage({ params }: PageProps) {
     // 1. Authenticate user context
     const session = await getSession();
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    await assertUserAccess(session, [Role.nutritionist_auditor]);
 
     // 2. Resolve dynamic parameters
     const { restaurantId } = await params;
@@ -63,11 +63,11 @@ export default async function PhysicalAuditPage({ params }: PageProps) {
     }
 
     return (
-        <div   ="min-h-screen bg-neutral-100 p-8 text-black font-mono">
-            <div className="mx-auto max-w-3xl border-4 border-black bg-white p-6 rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-6">
+        <div >
+            <div >
 
                 {/* Navigation Breadcrumbs */}
-                <div className="font-mono text-xs uppercase flex space-x-2 border-b-2 border-black pb-2">
+                <div className="  text-xs uppercase flex space-x-2 border-b-2 border-black pb-2">
                     <Link href="/auditor/queue" className="underline hover:text-red-500">Queue</Link>
                     <span>/</span>
                     <span className="text-neutral-500">Site Audit: {serializedRestaurant.business_name}</span>
@@ -169,13 +169,13 @@ export default async function PhysicalAuditPage({ params }: PageProps) {
                     <div className="flex gap-4 pt-4 border-t-2 border-black">
                         <button
                             type="submit"
-                            className="flex-1 bg-green-500 hover:bg-green-600 text-black py-3 font-mono text-sm font-bold uppercase border-2 border-black rounded-none active:translate-x-1 active:translate-y-1 transition"
+                            className="flex-1 bg-green-500 hover:bg-green-600 text-black py-3   text-sm font-bold uppercase border-2 border-black rounded-none active:translate-x-1 active:translate-y-1 transition"
                         >
                             Log Site Audit & Update Compliance Levels
                         </button>
                         <Link
                             href="/auditor/queue"
-                            className="bg-white border-2 border-black text-black px-6 py-3 font-mono text-sm font-bold uppercase rounded-none hover:bg-neutral-50 flex items-center justify-center"
+                            className="bg-white border-2 border-black text-black px-6 py-3   text-sm font-bold uppercase rounded-none hover:bg-neutral-50 flex items-center justify-center"
                         >
                             Cancel
                         </Link>

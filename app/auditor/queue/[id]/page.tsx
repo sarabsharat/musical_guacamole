@@ -1,11 +1,11 @@
-// app/auditor/queue/[id]/page.tsx.tsx
+// app/auditor/queue/[id]/layout.tsx.tsx
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
 import { getSession, assertUserAccess } from "@/lib/security";
 import { Role } from "@prisma/client";
-import { verifyRecipeLevel1 } from "@/actions/auditor";
+import { verifyRecipeLevel1 } from "@/actions/AuditorActions";
 import Link from "next/link";
 
 interface PageProps {
@@ -76,7 +76,7 @@ export default async function AuditRecipeDetailPage({ params }: PageProps) {
             <div className="mx-auto max-w-5xl border-4 border-black bg-white p-6 rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-6">
 
                 {/* Navigation Breadcrumbs */}
-                <div className="font-mono text-xs uppercase flex space-x-2 border-b-2 border-black pb-2">
+                <div className="  text-xs uppercase flex space-x-2 border-b-2 border-black pb-2">
                     <Link href="/auditor/queue" className="underline hover:text-red-500">Verification Queue</Link>
                     <span>/</span>
                     <span className="text-neutral-500">Recipe Assessment #{serializedRecipe.id}</span>
@@ -88,10 +88,10 @@ export default async function AuditRecipeDetailPage({ params }: PageProps) {
                     <div className="lg:col-span-7 space-y-6">
 
                         <div className="border-4 border-black p-4 bg-neutral-50 rounded-none space-y-4">
-                            <h2 className="font-mono text-lg font-extrabold uppercase border-b-2 border-black pb-2">
+                            <h2 className="  text-lg font-extrabold uppercase border-b-2 border-black pb-2">
                                 Digital Math Integrity Check
                             </h2>
-                            <div className="bg-black text-white p-4 font-mono grid grid-cols-2 gap-4 text-center rounded-none">
+                            <div className="bg-black text-white p-4   grid grid-cols-2 gap-4 text-center rounded-none">
                                 <div className="bg-neutral-900 border border-neutral-700 p-2">
                                     <div className="text-[9px] uppercase text-neutral-400">Calculated Yield</div>
                                     <div className="text-lg font-bold">{serializedRecipe.calories} kcal</div>
@@ -113,12 +113,12 @@ export default async function AuditRecipeDetailPage({ params }: PageProps) {
 
                         {/* Individual Ingredient Multipliers List */}
                         <div className="border-4 border-black p-4 bg-white rounded-none space-y-3">
-                            <h3 className="font-mono text-sm font-bold uppercase border-b-2 border-black pb-1">
+                            <h3 className="  text-sm font-bold uppercase border-b-2 border-black pb-1">
                                 Parsed Proportions List
                             </h3>
                             <div className="space-y-2">
                                 {serializedRecipe.ingredients.map((ing: any) => (
-                                    <div key={ing.id} className="border-2 border-black p-3 font-mono text-xs flex justify-between items-center rounded-none bg-neutral-50">
+                                    <div key={ing.id} className="border-2 border-black p-3   text-xs flex justify-between items-center rounded-none bg-neutral-50">
                                         <div>
                                             <div className="font-bold uppercase">{ing.ingredient_item.name}</div>
                                             <div className="text-[10px] text-neutral-500 mt-1">Stated: &ldquo;{ing.user_stated_amount}&rdquo;</div>
@@ -141,7 +141,7 @@ export default async function AuditRecipeDetailPage({ params }: PageProps) {
 
                         {serializedRecipe.image_url && (
                             <div className="border-4 border-black p-2 bg-neutral-50 rounded-none">
-                                <h4 className="font-mono text-xs font-bold uppercase mb-2">Ingested Photo Comparison</h4>
+                                <h4 className="  text-xs font-bold uppercase mb-2">Ingested Photo Comparison</h4>
                                 <div className="w-full h-48 border-2 border-black overflow-hidden relative">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
@@ -155,11 +155,11 @@ export default async function AuditRecipeDetailPage({ params }: PageProps) {
 
                         {/* Verification Form */}
                         <div className="border-4 border-black p-4 bg-white rounded-none">
-                            <h3 className="font-mono text-sm font-bold uppercase border-b-2 border-black pb-2 mb-4">
+                            <h3 className="  text-sm font-bold uppercase border-b-2 border-black pb-2 mb-4">
                                 Nutritionist Assessment Sign-Off
                             </h3>
 
-                            <form action={handleAuditFormSubmit} className="space-y-4 font-mono">
+                            <form action={handleAuditFormSubmit} className="space-y-4  ">
 
                                 {/* Decision input radio boxes */}
                                 <div className="space-y-2">

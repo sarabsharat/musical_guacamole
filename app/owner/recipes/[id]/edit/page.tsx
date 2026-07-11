@@ -1,4 +1,4 @@
-// src/app/owner/recipes.ts/[id]/edit/page.tsx
+// src/app/owner/recipes.ts/[id]/edit/layout.tsx
 import React from "react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -55,7 +55,7 @@ export default async function RecipeEditPage({ params }: PageProps) {
     const serializedReferences = serializePrisma(references);
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black font-mono">
+        <div className="min-h-screen bg-neutral-100 p-8 text-black  ">
             <RecipeEditForm
                 currentUser={currentUser!}
                 recipe={serializedRecipe}

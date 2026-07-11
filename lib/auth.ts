@@ -8,7 +8,6 @@ import { SessionUser } from "@/lib/shared-types";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 
-
 declare module "next-auth" {
     interface Session {
         user: {
@@ -18,12 +17,14 @@ declare module "next-auth" {
             role?: Role | null;
             restaurantId?: number | null;
             slug?: string | null;
+            is_active?: boolean | null;
         }
     }
     interface User {
         role?: Role | null;
         restaurantId?: number | null;
         slug?: string | null;
+        is_active?: boolean | null;
     }
 }
 
@@ -32,14 +33,13 @@ declare module "next-auth/jwt" {
         role?: Role | null;
         restaurantId?: number | null;
         slug?: string | null;
+        is_active?: boolean | null;
     }
 }
 
-// who is this person and what is the restaurant they own ???
 export async function getSession(): Promise<SessionUser | null> {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) return null;
-
     return {
         id: parseInt(session.user.id, 10),
         email: session.user.email,
@@ -47,12 +47,12 @@ export async function getSession(): Promise<SessionUser | null> {
         full_name: session.user.name || "",
         restaurantId: session.user.restaurantId ? parseInt(String(session.user.restaurantId), 10) : undefined,
         slug: session.user.slug || undefined,
+        is_active: session.user.is_active ?? true,
     };
 }
 
 export const authOptions: NextAuthOptions = {
-    // We use Prisma to store users, but JWTs for the actual session tracking
-    adapter: PrismaAdapter(prisma) as any,
+    adapter: PrismaAdapter(prisma),
     providers: [
         CredentialsProvider({
             name: "Credentials",
@@ -61,30 +61,14 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" }
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) {
-                    console.error("Missing credentials");
-                    return null;
-                }
-
-                // this is where the user is tied to the slug
-                // prisma finds the user and includes the res they are attached to
+                if (!credentials?.email || !credentials?.password) return null;
                 const user = await prisma.user.findUnique({
                     where: { email: credentials.email },
                     include: { restaurant: true }
                 });
-
-                if (!user) {
-                    console.error("User not found:", credentials.email);
-                    return null;
-                }
-
+                if (!user) return null;
                 const isValid = await bcrypt.compare(credentials.password, user.password_hash);
-                if (!isValid) {
-                    console.error("Invalid password for:", credentials.email);
-                    return null;
-                }
-
-                // extract the id and slug from the attached res, and if the user has no res it falls back
+                if (!isValid) return null;
                 return {
                     id: String(user.id),
                     email: user.email,
@@ -92,59 +76,78 @@ export const authOptions: NextAuthOptions = {
                     role: user.role,
                     restaurantId: user.restaurant?.id || null,
                     slug: user.restaurant?.slug || null,
+                    is_active: user.is_active,
                 };
             }
         }),
         GoogleProvider({
             clientId: process.env.CLIENT_ID || "",
             clientSecret: process.env.CLIENT_SECRET || "",
-            authorization: {
-                params: {
-                    prompt: "consent",
-                }
+            allowDangerousEmailAccountLinking: true,
+            authorization: { params: { prompt: "consent" } },
+            async profile(profile) {
+                const email = profile.email as string;
+                if (!email) throw new Error("No email provided by Google.");
+                const existingUser = await prisma.user.findUnique({
+                    where: { email },
+                    select: { role: true, is_active: true, restaurant: { select: { slug: true } } }
+                });
+                return {
+                    id: profile.sub as string,
+                    email,
+                    name: (profile.name as string) || "",
+                    image: profile.picture as string,
+                    role: existingUser?.role || Role.restaurant_owner,
+                    is_active: existingUser?.is_active ?? true,
+                    slug: existingUser?.restaurant?.slug || null,
+                };
             }
-        })
+        }),
     ],
     callbacks: {
-        //Runs immediately after 'authorize' succeeds.
-        async jwt({ token, user}) {
-            // stamp the res id and slug to the jwt token of user
-            // 'user' only exists the very first time this runs right after login
+        async jwt({ token, user }) {
             if (user) {
-                token.slug = user.slug;
-                token.restaurantId = user.restaurantId;
                 token.role = user.role;
+                token.id = user.id;
+                token.slug = user.slug;
+                token.is_active = user.is_active;
+            } else if (token.id) {
+                // Refresh token from DB (important for slug update)
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: parseInt(token.id as string, 10) },
+                    include: { restaurant: true },
+                });
+                if (dbUser) {
+                    token.role = dbUser.role;
+                    token.slug = dbUser.restaurant?.slug || null;
+                    token.is_active = dbUser.is_active;
+                }
             }
-            return token; // This token is then encrypted and saved as a cookie
+            return token;
         },
-
-        // Runs every time a component calls getServerSession()
         async session({ session, token }) {
-            // We take the custom data we stamped into the token in Step 1,
-            // and attach it to the visible session object for the frontend to use.
-            if (session.user) {
-                session.user.slug = token.slug;
-                session.user.restaurantId = token.restaurantId;
-                session.user.role = token.role;
-                session.user.id = token.sub as string; // 'sub' is the default JWT ID field
-            }
+            session.user.role = token.role;
+            session.user.id = token.id;
+            session.user.slug = token.slug;
+            session.user.is_active = token.is_active;
             return session;
-        }
+        },
     },
-    session: { strategy: "jwt" },
+    session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
     secret: process.env.NEXTAUTH_SECRET,
-    pages: {
-        signIn: "/auth/login",
-    },
+    pages: { signIn: "/auth/login", error: "/auth/error" },
     cookies: {
         sessionToken: {
-            name: `next-auth.session-token`,
+            name: process.env.NODE_ENV === "production" ? "__Secure-next-auth.session-token" : "next-auth.session-token",
             options: {
-                path: "/",
                 httpOnly: true,
                 sameSite: "lax",
+                path: "/",
                 secure: process.env.NODE_ENV === "production",
-            }
-        }
-    }
+                domain: process.env.NODE_ENV === "production"
+                    ? process.env.NEXTAUTH_URL ? new URL(process.env.NEXTAUTH_URL).hostname : undefined
+                    : "localhost",
+            },
+        },
+    },
 };

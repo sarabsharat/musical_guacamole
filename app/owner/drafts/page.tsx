@@ -1,4 +1,4 @@
-// app/owner/drafts/page.tsx.tsx
+// app/owner/drafts/layout.tsx.tsx
 import React from "react";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
@@ -13,7 +13,7 @@ export default async function DraftsQueuePage() {
     // 1. Resolve user session context dynamically [5]
     const currentUser = await getSession();
 
-    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts page.tsx
+    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts layout.tsx
     await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
     // 3. Query all active drafts specifically for this establishment [5]
@@ -90,7 +90,7 @@ export default async function DraftsQueuePage() {
                                 <div>
                                     {draft.status === DraftStatus.RESOLVED ? (
                                         <Link
-                                            href={`/owner/drafts/${draft.id}`}
+                                            href={`/drafts/${draft.id}`}
                                             >
                                             Resolve Mappings &rarr;
                                         </Link>

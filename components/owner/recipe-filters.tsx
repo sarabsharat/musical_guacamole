@@ -1,8 +1,21 @@
+// src/components/owner/recipe-filters.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RecipeStatus } from "@prisma/client";
+
+// Shadcn UI
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Search } from "lucide-react";
 
 interface FilterProps {
     currentStatus?: RecipeStatus;
@@ -30,10 +43,11 @@ export function RecipeFilters({ currentStatus, currentSearch }: FilterProps) {
         return () => clearTimeout(delayDebounce);
     }, [search, searchParams, router]);
 
-    const handleStatusChange = (status: string) => {
+    const handleStatusChange = (value: string) => {
         const params = new URLSearchParams(searchParams.toString());
-        if (status) {
-            params.set("status", status);
+        // Map "ALL" back to an empty string to remove the filter
+        if (value && value !== "ALL") {
+            params.set("status", value);
         } else {
             params.delete("status");
         }
@@ -42,40 +56,46 @@ export function RecipeFilters({ currentStatus, currentSearch }: FilterProps) {
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border-4 border-black bg-neutral-50 rounded-none">
-
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-5 rounded-lg border bg-card text-card-foreground shadow-sm">
             {/* Name searching */}
-            <div className="md:col-span-3 space-y-1">
-                <label className="block font-mono text-[10px] font-bold uppercase text-neutral-600">
+            <div className="md:col-span-3 space-y-2">
+                <Label htmlFor="search" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Search portfolio meal name
-                </label>
-                <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="e.g. Kmaj, Amman, Mansaf..."
-                    className="w-full border-2 border-black p-2 font-mono text-xs rounded-none bg-white focus:outline-none focus:bg-neutral-100"
-                />
+                </Label>
+                <div className="relative">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        id="search"
+                        type="search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="e.g. Kmaj, Amman, Mansaf..."
+                        className="pl-9 bg-background"
+                    />
+                </div>
             </div>
 
             {/* Status Filter Dropdown */}
-            <div className="space-y-1">
-                <label className="block font-mono text-[10px] font-bold uppercase text-neutral-600">
+            <div className="space-y-2">
+                <Label htmlFor="status-filter" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Compliance Status
-                </label>
-                <select
-                    value={currentStatus || ""}
-                    onChange={(e) => handleStatusChange(e.target.value)}
-                    className="w-full border-2 border-black p-2 font-mono text-xs rounded-none bg-white focus:outline-none"
+                </Label>
+                <Select
+                    value={currentStatus || "ALL"}
+                    onValueChange={handleStatusChange}
                 >
-                    <option value="">ALL RECIPES</option>
-                    <option value={RecipeStatus.PENDING}>PENDING AUDIT</option>
-                    <option value={RecipeStatus.APPROVED}>APPROVED / ACTIVE</option>
-                    <option value={RecipeStatus.REJECTED}>REJECTED / ACTION REQ</option>
-                    <option value={RecipeStatus.REVOKED}>REVOKED BY JFDA</option>
-                </select>
+                    <SelectTrigger id="status-filter" className="bg-background">
+                        <SelectValue placeholder="All Recipes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ALL">All Recipes</SelectItem>
+                        <SelectItem value={RecipeStatus.PENDING}>Pending Audit</SelectItem>
+                        <SelectItem value={RecipeStatus.APPROVED}>Approved / Active</SelectItem>
+                        <SelectItem value={RecipeStatus.REJECTED}>Rejected / Action Req</SelectItem>
+                        <SelectItem value={RecipeStatus.REVOKED}>Revoked by JFDA</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
-
         </div>
     );
 }

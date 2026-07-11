@@ -1,14 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import { submitRawDraft } from "@/actions/owner-drafts";
+import { submitRawDraft } from "@/actions/DraftsActions";
 import { DragDropUploader } from "@/components/owner/drag-drop-uploader";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Define the exact props passed down from your server page
 interface SubmitRecipeFormProps {
-    currentUser: any; // Replace 'any' with SessionUser from "@/lib/shared-types" if available
-    tenant: any;      // Replace 'any' with TenantContext from "@/lib/tenant" if available
+    currentUser: any;
+    tenant: any;
 }
 
 export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFormProps) {
@@ -35,7 +39,6 @@ export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFo
         setLoading(true);
         setStatusMessage(null);
 
-        // Client ONLY sends the payload. Server Action resolves the session/tenant securely.
         const result = await submitRawDraft({
             raw_text: rawText,
             image_url: imageUrl,
@@ -50,7 +53,6 @@ export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFo
             });
             setRawText("");
             setImageUrl("");
-            // Force remount of the uploader to clear the preview image
             setUploaderKey((k) => k + 1);
         } else {
             setStatusMessage({
@@ -61,92 +63,97 @@ export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFo
     };
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
-            <div className="mx-auto max-w-2xl border-4 border-black bg-white p-6 rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-
-                {/* Navigation Breadcrumb */}
-                <div className="mb-6 font-mono text-xs uppercase flex space-x-2">
-                    <Link href="/owner/recipes" className="underline hover:text-red-500">Menu Portfolio</Link>
+        <div className="min-h-screen bg-background p-4 md:p-8">
+            <div className="mx-auto max-w-2xl">
+                {/* Breadcrumb */}
+                <div className="mb-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Link href="/owner/recipes" className="hover:text-foreground transition-colors">
+                        Menu Portfolio
+                    </Link>
                     <span>/</span>
-                    <span className="text-neutral-500">Zero-Search Ingestion</span>
+                    <span>Zero-Search Ingestion</span>
                 </div>
 
-                <div className="border-b-4 border-black pb-4 mb-6">
-                    <h1 className="font-mono text-3xl font-extrabold uppercase tracking-tight">
-                        Ingest Recipe Draft
-                    </h1>
-                    <p className="font-mono text-xs text-neutral-600 mt-1">
+                {/* Header Card */}
+                <div className="mb-8 rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
+                    <h1 className="text-3xl font-black uppercase tracking-tight">Ingest Recipe Draft</h1>
+                    <p className="mt-2 text-sm text-muted-foreground">
                         Dictate, paste, or list raw meal details naturally. AI extracts precise gram metrics asynchronously.
                     </p>
                 </div>
 
+                {/* Status Message */}
                 {statusMessage && (
-                    <div
-                        className={`border-4 p-4 font-mono text-sm uppercase mb-6 rounded-none ${
-                            statusMessage.type === "success"
-                                ? "border-green-600 bg-green-50 text-green-700"
-                                : "border-red-600 bg-red-50 text-red-700"
-                        }`}
-                    >
-                        <div className="font-bold">{statusMessage.type === "success" ? "Success" : "Error"}</div>
-                        <div className="mt-1 text-xs">{statusMessage.text}</div>
-                    </div>
+                    <Alert className="mb-6" variant={statusMessage.type === "error" ? "destructive" : "default"}>
+                        {statusMessage.type === "success" ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                            <AlertCircle className="h-4 w-4" />
+                        )}
+                        <AlertTitle className="capitalize">{statusMessage.type}</AlertTitle>
+                        <AlertDescription>{statusMessage.text}</AlertDescription>
+                    </Alert>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Form Card */}
+                <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Section 1: Preparation Description */}
+                        <div className="space-y-2">
+                            <Label htmlFor="raw-text" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                1. Unstructured Preparation Notes
+                            </Label>
+                            <Textarea
+                                id="raw-text"
+                                required
+                                rows={6}
+                                value={rawText}
+                                onChange={(e) => setRawText(e.target.value)}
+                                placeholder="Example: 150g grilled chicken breast, 50g strained yogurt, and 3 pieces of baked falafel."
+                                className="resize-none bg-background"
+                            />
+                        </div>
 
-                    {/* Section 1: Preparation Description Textarea */}
-                    <div className="space-y-2">
-                        <label className="block font-mono text-sm font-bold uppercase">
-                            1. Unstructured Preparation Notes
-                        </label>
-                        <textarea
-                            required
-                            rows={6}
-                            value={rawText}
-                            onChange={(e) => setRawText(e.target.value)}
-                            placeholder="Example: 150g grilled chicken breast, 50g strained yogurt, and 3 pieces of baked falafel."
-                            className="w-full border-4 border-black p-3 font-mono text-xs rounded-none focus:outline-none focus:bg-neutral-50"
-                        />
-                    </div>
+                        {/* Section 2: Media Ingestion */}
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                2. Recipe Image Reference
+                            </Label>
+                            <DragDropUploader
+                                key={uploaderKey}
+                                onUploadStart={() => setImageUploading(true)}
+                                onUploadSuccess={(url) => {
+                                    setImageUploading(false);
+                                    setImageUrl(url);
+                                }}
+                                onUploadError={(err) => {
+                                    setImageUploading(false);
+                                    setStatusMessage({ type: "error", text: err });
+                                }}
+                            />
+                        </div>
 
-                    {/* Section 2: Media Ingestion Uploader */}
-                    <div className="space-y-2">
-                        <label className="block font-mono text-sm font-bold uppercase">
-                            2. Recipe Image Reference
-                        </label>
-                        <DragDropUploader
-                            key={uploaderKey}
-                            onUploadStart={() => setImageUploading(true)}
-                            onUploadSuccess={(url) => {
-                                setImageUploading(false);
-                                setImageUrl(url);
-                            }}
-                            onUploadError={(err) => {
-                                setImageUploading(false);
-                                setStatusMessage({ type: "error", text: err });
-                            }}
-                        />
-                    </div>
-
-                    {/* Section 3: Submission Action Buttons */}
-                    <div className="flex gap-4 pt-4 border-t-2 border-black">
-                        <button
-                            type="submit"
-                            disabled={loading || imageUploading}
-                            className="flex-1 bg-black text-white py-3 font-mono text-sm font-bold uppercase border-2 border-black rounded-none transition hover:bg-neutral-800 disabled:opacity-45"
-                        >
-                            {loading ? "Processing..." : imageUploading ? "Waiting for image..." : "Trigger AI Extraction"}
-                        </button>
-                        <Link
-                            href="/owner/drafts"
-                            className="bg-white text-black px-6 py-3 font-mono text-sm font-bold uppercase border-2 border-black rounded-none hover:bg-neutral-50 flex items-center justify-center"
-                        >
-                            Check Active Queue
-                        </Link>
-                    </div>
-
-                </form>
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 border-t pt-6">
+                            <Button
+                                type="submit"
+                                disabled={loading || imageUploading}
+                                size="lg"
+                                className="flex-1 uppercase font-semibold"
+                            >
+                                {loading ? "Processing..." : imageUploading ? "Waiting for image..." : "Trigger AI Extraction"}
+                            </Button>
+                            <Button
+                                asChild
+                                variant="outline"
+                                size="lg"
+                                className="uppercase font-semibold"
+                            >
+                                <Link href="/owner/drafts">Check Active Queue</Link>
+                            </Button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );

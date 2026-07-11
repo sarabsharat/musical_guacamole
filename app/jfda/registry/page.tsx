@@ -1,4 +1,4 @@
-// src/app/jfda/registry/page.tsx.tsx
+// src/app/jfda/registry/layout.tsx.tsx
 import React from "react";
 import { getJfdaCertifiedRegistry, revokeRestaurantCompliance } from "@/actions/jfda";
 import { getSession, assertUserAccess } from "@/lib/security";

@@ -48,23 +48,29 @@ enum DraftStatus {
 model User {
   id            Int         @id @default(autoincrement())
   email         String      @unique
-  password_hash String
+  password_hash String?
+  phone_number  String?
+  full_name     String?
+  name          String?
+  image         String?
+  emailVerified DateTime?
   role          Role
-  full_name     String
-  phone_number  String
   created_at    DateTime    @default(now())
+  is_active     Boolean     @default(true)
   restaurant    Restaurant?
+
+  auditLogs     AuditLog[]
+  reset_tokens  PasswordResetToken[]
+  accounts      Account[]
+  sessions      Session[]
 }
 
 model Restaurant {
   id Int @id @default(autoincrement())
 
-  // --- NEW MULTI-TENANT FIELDS ---
   slug          String  @unique // e.g., "burger-lab" for burger-lab.yourapp.jo
   custom_domain String? @unique // e.g., "nutrition.burgerlab.com"
   plan_tier     String  @default("free")
-  // -------------------------------
-
   business_name String
   address_line  String
   cert_status   CertStatus              @default(NONE)
@@ -74,6 +80,7 @@ model Restaurant {
   recipes       Recipe[]
   profile       KitchenControlProfile[]
   recipeDrafts  RecipeDraft[]
+  auditLogs AuditLog[]
 }
 
 model IngredientReference {
@@ -104,6 +111,7 @@ model Recipe {
   detected_allergens String[]           @default([])
   ingredients        RecipeIngredient[]
   versions           RecipeVersion[]
+  auditLogs AuditLog[]
 }
 
 model RecipeIngredient {
@@ -150,10 +158,58 @@ model RecipeDraft {
 
 model AuditLog {
   id            Int      @id @default(autoincrement())
-  actor_id      Int // Links to User.id
-  restaurant_id Int? // Linked Context
-  recipe_id     Int? // Linked Context
-  action        String // e.g., "RECIPE_APPROVED", "CERT_REVOKED", "RECIPE_REVERTED"
-  payload       Json? // Detailed diffs of changes
+  actor_id      Int
+  actor         User     @relation(fields: [actor_id], references: [id])
+  restaurant_id Int?
+  restaurant    Restaurant? @relation(fields: [restaurant_id], references: [id])
+  recipe_id     Int?
+  recipe        Recipe?  @relation(fields: [recipe_id], references: [id])
+  action        String
+  payload       Json?
   created_at    DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             Int     // Matches the Int type of User.id
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int      // Matches the Int type of User.id
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }

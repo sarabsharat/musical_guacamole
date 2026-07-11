@@ -17,7 +17,7 @@ export async function assertUserAccess(
 ): Promise<void> {
     // 1. Session check
     if (!currentUser) {
-        redirect("/auth/login");
+        redirect("/login");
     }
 
     // 2. Role validation

@@ -7,4 +7,5 @@ export interface SessionUser {
     full_name: string;
     restaurantId?: number;
     slug?: string;
+    is_active?: boolean;
 }

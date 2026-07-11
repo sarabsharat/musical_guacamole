@@ -105,14 +105,14 @@ export function SearchableIngredientSelect({
                 onFocus={() => setIsOpen(true)}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
-                className="w-full border border-black p-1.5 font-mono text-xs rounded-none focus:outline-none mt-1 bg-white"
+                className="w-full border border-black p-1.5   text-xs rounded-none focus:outline-none mt-1 bg-white"
             />
             {isOpen && filtered.length > 0 && (
                 <ul className="absolute z-10 w-full max-h-60 overflow-y-auto border border-black bg-white mt-1 rounded-none shadow-lg">
                     {filtered.map((ing, index) => (
                         <li
                             key={ing.id}
-                            className={`px-2 py-1 cursor-pointer hover:bg-neutral-100 text-xs font-mono ${
+                            className={`px-2 py-1 cursor-pointer hover:bg-neutral-100 text-xs   ${
                                 index === highlightedIndex ? "bg-neutral-200" : ""
                             }`}
                             onClick={() => handleSelect(ing)}

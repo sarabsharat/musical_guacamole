@@ -1,4 +1,4 @@
-// src/app/owner/drafts/[id]/page.tsx
+// src/app/owner/drafts/[id]/layout.tsx
 import React from "react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";

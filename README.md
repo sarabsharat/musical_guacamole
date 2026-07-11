@@ -22,7 +22,7 @@ This project is an **Enterprise B2B SaaS** platform designed for the Jordanian c
 * **Layer 2 (Root Layout):** Resolves the tenant context using a centralized Resolver pattern.
 * **Layer 3 (Guardrails):** Enforces strict identity, role, and tenant-match checks on every request.
 
----
+
 
 ## 🚀 Getting Started
 

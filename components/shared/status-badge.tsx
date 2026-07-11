@@ -1,39 +1,58 @@
+// src/components/shared/status-badge.tsx
 import React from "react";
 import { RecipeStatus, DraftStatus, CertStatus } from "@prisma/client";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type StatusType = RecipeStatus | DraftStatus | CertStatus;
 
 interface BadgeProps {
     status: StatusType;
+    className?: string; // Allows for additional styling overrides if needed
 }
 
-export function StatusBadge({ status }: BadgeProps) {
-    let classes = "bg-neutral-100 text-neutral-800 border-neutral-400";
+export function StatusBadge({ status, className }: BadgeProps) {
+    let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
+    let customClasses = "";
 
     switch (status) {
         case "APPROVED":
         case "RESOLVED":
         case "ACTIVE":
-            classes = "bg-green-100 text-green-800 border-green-500 font-bold";
+            // Soft green for success states
+            variant = "secondary";
+            customClasses = "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-transparent";
             break;
+
         case "PENDING":
         case "PROCESSING":
-            classes = "bg-yellow-100 text-yellow-800 border-yellow-500 animate-pulse";
+            // Soft amber for waiting states (removed the harsh pulse)
+            variant = "secondary";
+            customClasses = "bg-amber-100 text-amber-800 hover:bg-amber-200 border-transparent";
             break;
+
         case "REJECTED":
         case "FAILED":
-            classes = "bg-red-100 text-red-800 border-red-500 font-bold";
+            // Uses Shadcn's built-in destructive (red) theme
+            variant = "destructive";
             break;
+
         case "REVOKED":
-            classes = "bg-neutral-900 text-white border-black font-extrabold";
+            // Uses Shadcn's default primary color (usually solid black/dark gray)
+            variant = "default";
             break;
     }
 
     return (
-        <span
-            className={`inline-block border-2 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide rounded-none ${classes}`}
+        <Badge
+            variant={variant}
+            className={cn(
+                "px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                customClasses,
+                className
+            )}
         >
-      {status}
-    </span>
+            {status}
+        </Badge>
     );
 }

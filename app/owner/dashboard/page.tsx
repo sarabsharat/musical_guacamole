@@ -1,17 +1,13 @@
-// src/app/owner/dashboard/page.tsx
-import { getSession, assertUserAccess } from "@/lib/security";
-import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { headers } from "next/headers";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { serializePrisma } from "@/lib/serialize";
-import {getTenantContext} from "@/lib/tenant";
-import {requireOwnerAuth} from "@/lib/RequireOwnerAuth";
+import { requireOwnerAuth } from "@/lib/RequireOwnerAuth";
+import { DashboardUi } from "@/components/owner/DashboardUi";
 
 export default async function DashboardPage() {
+    // 1. Authenticate & Secure
     const { restaurantId } = await requireOwnerAuth();
+
+    // 2. Fetch all required data concurrently
     const [
         totalRecipes,
         pendingCount,
@@ -32,69 +28,15 @@ export default async function DashboardPage() {
         }),
     ]);
 
-    const serializedRecent = serializePrisma(recentRecipes);
+    // 3. Package the data for the UI
+    const dashboardData = {
+        totalRecipes,
+        pendingCount,
+        approvedCount,
+        flaggedCount: rejectedCount + revokedCount,
+        recentRecipes: serializePrisma(recentRecipes),
+    };
 
-    return (
-        <div >
-            <div >
-                <h1 >Dashboard</h1>
-                <p >
-                    Overview of your restaurant's compliance status and recipe portfolio.
-                </p>
-            </div>
-
-            <div>
-                <div >
-                    <div>Total Recipes</div>
-                    <div >{totalRecipes}</div>
-                </div>
-                <div >
-                    <div >Pending Reviews</div>
-                    <div >{pendingCount}</div>
-                </div>
-                <div >
-                    <div>Approved</div>
-                    <div>{approvedCount}</div>
-                </div>
-                <div >
-                    <div >Issues Flagged</div>
-                    <div>{rejectedCount + revokedCount}</div>
-                </div>
-            </div>
-
-            <div>
-                <div>
-                    <h2 >Recent Recipes</h2>
-                    <Link href="/recipes" >View All</Link>
-                </div>
-                {serializedRecent.length === 0 ? (
-                    <p >No recipes yet. <Link href="/submit" className="underline">Add your first recipe</Link></p>
-                ) : (
-                    <ul >
-                        {serializedRecent.map((recipe: any) => (
-                            <li key={recipe.id} >
-                                <div>
-                                    <div>{recipe.meal_name}</div>
-                                    <div >{recipe.calories} kcal • {recipe.protein}g P • {recipe.carbs}g C • {recipe.total_fat}g F</div>
-                                </div>
-                                <div>
-                                    <StatusBadge status={recipe.status} />
-                                    <Link href={`/recipes/${recipe.id}`}>View</Link>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-
-            <div >
-                <Link href="/submit" >
-                    + Ingest Recipe
-                </Link>
-                <Link href="/drafts" >
-                    View Drafts
-                </Link>
-            </div>
-        </div>
-    );
+    // 4. Render the purely visual UI component, passing the secure data
+    return <DashboardUi data={dashboardData} />;
 }

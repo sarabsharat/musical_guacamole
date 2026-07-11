@@ -9,7 +9,7 @@ export async function requireOwnerAuth() {
 
     // 1. Kick them out if they aren't logged in or don't have a restaurant
     if (!currentUser || !currentUser.restaurantId) {
-        redirect("/auth/login");
+        redirect("/login");
     }
 
     // 2. Run your powerful bouncer function to verify roles and subdomains
