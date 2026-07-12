@@ -1,53 +1,33 @@
-// src/lib/tenant.ts
-import { cache } from "react";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
-export interface TenantContext {
-    id: number;
-    slug: string;
-    business_name: string;
-    cert_level: string;
-    cert_status: string;
-}
+export async function getTenantContext() {
+    // 1. Get the host header (e.g., "dev-tenant.localhost:3000")
+    const headersList = await headers();
+    const host = headersList.get("host") || "";
 
-/**
- * Resolves tenant details on the server during the request lifecycle.
- * Uses React cache to prevent duplicate database select operations [5].
- */
-export const getTenantContext = cache(async (): Promise<TenantContext | null> => {
-    try {
-        const headersList = await headers();
-        const slug = headersList.get("x-tenant-slug");
+    // 2. Strip the port (Leaves "dev-tenant.localhost")
+    const hostWithoutPort = host.split(":")[0];
 
-        if (!slug) {
-            return null;
-        }
+    // 3. Extract just the slug
+    let slug = null;
+    if (hostWithoutPort.includes(".localhost")) {
+        // Local development extraction
+        slug = hostWithoutPort.replace(".localhost", "");
+    } else {
+        // Production extraction (Update this to your actual live domain later!)
+        slug = hostWithoutPort.replace(".musical-guacamole.jo", "");
+    }
 
-        const restaurant = await prisma.restaurant.findUnique({
-            where: { slug },
-            select: {
-                id: true,
-                slug: true,
-                business_name: true,
-                cert_level: true,
-                cert_status: true,
-            },
-        });
-
-        if (!restaurant) {
-            return null;
-        }
-
-        return {
-            id: restaurant.id,
-            slug: restaurant.slug,
-            business_name: restaurant.business_name,
-            cert_level: restaurant.cert_level,
-            cert_status: restaurant.cert_status,
-        };
-    } catch (error) {
-        console.error("Tenant resolution failed:", error);
+    // If no slug is found, it's not a valid tenant URL
+    if (!slug || slug === "localhost" || slug === "musical-guacamole.jo") {
         return null;
     }
-});
+
+    // 4. Query Prisma using ONLY the exact slug ("dev-tenant")
+    const tenant = await prisma.restaurant.findUnique({
+        where: { slug: slug },
+    });
+
+    return tenant;
+}

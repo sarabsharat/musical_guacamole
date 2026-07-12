@@ -1,4 +1,4 @@
-// app/owner/drafts/[id]/page.tsx
+// src/app/owner/drafts/[id]/layout.tsx
 import React from "react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -7,8 +7,6 @@ import { DraftResolutionForm } from "@/components/owner/draft-resolution-form";
 import { Role } from "@prisma/client";
 import { getSession, assertUserAccess } from "@/lib/security";
 
-export const revalidate = 0;
-
 interface PageProps {
     params: Promise<{
         id: string;
@@ -16,14 +14,14 @@ interface PageProps {
 }
 
 export default async function DraftResolutionPage({ params }: PageProps) {
-    // 1. Fetch the session
+    // 1. Fetch user session [5]
     const currentUser = await getSession();
 
-    // 2. 🚨 UNIFIED PAGE-LEVEL GUARDRAIL 🚨
-    // This handles session existence, role checking, and tenant header validation in one call
+
+    // 2. 🚨 SECURITY: Ensure owner is logged in and belongs to this tenant [3]
     await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
-    // 3. Resolve dynamic routing params
+    // 3. Resolve dynamic parameters [1]
     const { id } = await params;
     const draftId = parseInt(id, 10);
 
@@ -32,7 +30,6 @@ export default async function DraftResolutionPage({ params }: PageProps) {
     }
 
     // 4. Fetch the Draft using strict tenant isolation
-    // currentUser is guaranteed to be non-null by assertUserAccess
     const draftData = await prisma.recipeDraft.findFirst({
         where: {
             id: draftId,
@@ -44,17 +41,17 @@ export default async function DraftResolutionPage({ params }: PageProps) {
         return notFound();
     }
 
-    // 5. Fetch the custom localized reference library
+    // 5. Fetch reference ingredient library
     const references = await prisma.ingredientReference.findMany({
         orderBy: { name: "asc" },
     });
 
-    // 6. Serialize data
+    // 6. Serialize database objects [2]
     const serializedDraft = serializePrisma(draftData);
     const serializedReferences = serializePrisma(references);
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
+        <div>
             <DraftResolutionForm
                 currentUser={currentUser!}
                 draft={serializedDraft}

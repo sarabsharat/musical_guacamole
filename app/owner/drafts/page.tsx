@@ -1,4 +1,4 @@
-// app/owner/drafts/page.tsx
+// app/owner/drafts/layout.tsx.tsx
 import React from "react";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
@@ -13,7 +13,7 @@ export default async function DraftsQueuePage() {
     // 1. Resolve user session context dynamically [5]
     const currentUser = await getSession();
 
-    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts page
+    // 2. 🚨 SECURITY: Root-level guardrail for this owner's drafts layout.tsx
     await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
 
     // 3. Query all active drafts specifically for this establishment [5]
@@ -32,28 +32,26 @@ export default async function DraftsQueuePage() {
     }>;
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
-            <div className="mx-auto max-w-4xl border-4 border-black bg-white p-6 rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+        <div >
+            <div >
 
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b-4 border-black pb-4 mb-6">
+                <div>
                     <div>
-                        <h1 className="font-mono text-3xl font-extrabold uppercase tracking-tight">
+                        <h1>
                             Ingestion Queue
                         </h1>
-                        <p className="font-mono text-xs text-neutral-600 mt-1">
+                        <p >
                             Active parsing processes. Items in <strong>RESOLVED</strong> status are ready for math validation.
                         </p>
                     </div>
-                    <div className="mt-4 md:mt-0 flex gap-2 font-mono">
+                    <div >
                         <Link
                             href="/submit"
-                            className="bg-black text-white px-4 py-2 font-bold text-xs uppercase border-2 border-black rounded-none hover:bg-neutral-800 transition"
                         >
                             + Ingest Raw Recipe
                         </Link>
                         <Link
                             href="/recipes"
-                            className="bg-white text-black px-4 py-2 font-bold text-xs uppercase border-2 border-black rounded-none hover:bg-neutral-50 transition"
                         >
                             Active Portfolio
                         </Link>
@@ -61,57 +59,48 @@ export default async function DraftsQueuePage() {
                 </div>
 
                 {/* Draft List Container */}
-                <div className="space-y-4">
+                <div >
                     {drafts.length === 0 ? (
-                        <div className="border-4 border-dashed border-black p-8 text-center bg-neutral-50 rounded-none">
-                            <p className="font-mono text-sm text-neutral-500">
-                                No active or historical ingestion processes found.
+                        <div><p> No active or historical ingestion processes found.
                             </p>
                         </div>
                     ) : (
                         drafts.map((draft) => (
                             <div
                                 key={draft.id}
-                                className="border-4 border-black p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white rounded-none hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition"
-                            >
-                                <div className="space-y-2 max-w-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <span className="font-mono text-xs font-bold text-neutral-400">
-                                            ID: #{draft.id}
+                                >
+                                <div >
+                                    <div >
+                                        <span >ID: #{draft.id}
                                         </span>
-                                        <span className="font-mono text-[10px] text-neutral-500">
-                                            {new Date(draft.created_at).toLocaleString()}
+                                        <span>{new Date(draft.created_at).toLocaleString()}
                                         </span>
                                         <StatusBadge status={draft.status} />
                                     </div>
 
-                                    <p className="font-mono text-xs font-semibold line-clamp-2 text-neutral-800 bg-neutral-50 p-2 border border-neutral-300">
-                                        &ldquo;{draft.raw_input_text}&rdquo;
+                                    <p> &ldquo;{draft.raw_input_text}&rdquo;
                                     </p>
 
                                     {draft.error_message && (
-                                        <div className="bg-red-50 border border-red-400 text-red-700 p-2 font-mono text-[10px] uppercase">
-                                            Error: {draft.error_message}
+                                        <div> Error: {draft.error_message}
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="w-full md:w-auto flex items-center justify-end">
+                                <div>
                                     {draft.status === DraftStatus.RESOLVED ? (
-                                        <a
-                                            href={`/owner/drafts/${draft.id}`} // Forced native browser navigation
-                                            className="w-full md:w-auto text-center bg-green-500 text-black border-2 border-black px-4 py-2 font-mono text-xs font-bold uppercase rounded-none hover:bg-green-600 transition"
-                                        >
+                                        <Link
+                                            href={`/drafts/${draft.id}`}
+                                            >
                                             Resolve Mappings &rarr;
-                                        </a>
+                                        </Link>
                                     ) : draft.status === DraftStatus.PROCESSING ? (
-                                        <div className="w-full md:w-auto text-center border-2 border-black bg-yellow-100 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none animate-pulse">
+                                        <div>
                                             Processing AI...
                                         </div>
                                     ) : (
                                         <button
                                             disabled
-                                            className="w-full md:w-auto border-2 border-black bg-neutral-100 text-neutral-400 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none cursor-not-allowed"
                                         >
                                             Resolution Locked
                                         </button>

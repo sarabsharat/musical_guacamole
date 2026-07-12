@@ -1,5 +1,7 @@
-"use server";
-import {prisma} from "@/lib/prisma";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { prisma } from "@/lib/prisma";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 
 export type ExtractedIngredientDraft = {
     raw_text: string;
@@ -7,30 +9,21 @@ export type ExtractedIngredientDraft = {
     calculated_grams: number;
 };
 
-/**
- * Coordinates raw preparation notes, parses them through a MOCK AI,
- * and resolves ingredients against the local database.
- */
+// 1. We now pass BOTH the text and the imageUrl
 export async function parseAndMapUnstructuredInput(
-    rawNotes: string
+    rawNotes: string,
+    imageUrl: string
 ): Promise<Array<ExtractedIngredientDraft & { resolved_ingredient_id: number | null }>> {
 
-    //  Call the mock extraction function
-    const extractedItems = await callMockLlmExtractionPipeline(rawNotes);
+    // Call the new visual extraction pipeline
+    const extractedItems = await callGeminiVisualExtraction(rawNotes, imageUrl);
 
-    const resolvedIngredients: Array<
-        ExtractedIngredientDraft & { resolved_ingredient_id: number | null }
-    > = [];
+    const resolvedIngredients: Array<ExtractedIngredientDraft & { resolved_ingredient_id: number | null }> = [];
 
-    //  Resolve each extraction against the PostgreSQL database
+    // Map AI guesses to your database ingredients
     for (const item of extractedItems) {
         const matchedRef = await prisma.ingredientReference.findFirst({
-            where: {
-                name: {
-                    contains: item.raw_text,
-                    mode: "insensitive", // Allows "test" to match "Test"
-                },
-            },
+            where: { name: { contains: item.raw_text, mode: "insensitive" } },
         });
 
         resolvedIngredients.push({
@@ -42,24 +35,42 @@ export async function parseAndMapUnstructuredInput(
     return resolvedIngredients;
 }
 
-/**
- * MOCK LLM caller.
- * Returns static data so you can build your UI without needing an API key.
- */
-async function callMockLlmExtractionPipeline(text: string): Promise<ExtractedIngredientDraft[]> {
-    // Simulating a 1-second delay so you can test your Next.js loading spinners
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+async function callGeminiVisualExtraction(text: string, imageUrl: string): Promise<ExtractedIngredientDraft[]> {
+    // Fetch the image from the URL and convert to Base64
+    const response = await fetch(imageUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const base64Image = Buffer.from(arrayBuffer).toString("base64");
+    const mimeType = response.headers.get("content-type") || "image/jpeg";
 
-    return [
-        {
-            raw_text: "Kmaj Bread",
-            stated_amount: "2 loaves",
-            calculated_grams: 180,
-        },
-        {
-            raw_text: "Olive Oil",
-            stated_amount: "a splash",
-            calculated_grams: 15,
-        },
-    ];
+    const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+    });
+
+    const prompt = `
+        You are a Master Chef AI. Your job is to look at the provided image of a meal and read the user's notes, then reverse-engineer the recipe. 
+        Notes: "${text}"
+        
+        Even if the notes are vague (e.g., "Kids meal"), you must visually identify every ingredient in the image and estimate its weight in grams. Include oils, sauces, garnishes, and main components.
+        
+        Output ONLY a JSON array of objects matching this exact structure:
+        [
+          {
+            "raw_text": "Standard English name of the ingredient (e.g., Chicken Breast, Olive Oil, Basmati Rice)",
+            "stated_amount": "Visual estimate (e.g., '1 patty', '1 tbsp', '1 handful')",
+            "calculated_grams": Estimated weight in grams as a number (e.g., 150, 15, 30)
+          }
+        ]
+    `;
+
+    try {
+        const result = await model.generateContent([
+            { text: prompt },
+            { inlineData: { mimeType, data: base64Image } }
+        ]);
+        return JSON.parse(result.response.text()) as ExtractedIngredientDraft[];
+    } catch (error) {
+        console.error("AI Visual Extraction Failed:", error);
+        return []; // Return empty array if it completely fails so the app doesn't crash
+    }
 }
