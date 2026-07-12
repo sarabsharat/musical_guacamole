@@ -2,14 +2,14 @@
 import React from "react";
 import { getTenantContext } from "@/lib/tenant";
 import { notFound } from "next/navigation";
-import { getSession } from "@/lib/auth";
-import {Header}  from "@/components/shared/Header";
+import { Header } from "@/components/shared/Header";
+import { getServerSession } from "@/lib/auth";
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
     const tenant = await getTenantContext();
     if (!tenant) return notFound();
 
-    const session = await getSession();
+    const session = await getServerSession();
     const role = session?.role || null;
 
     return (

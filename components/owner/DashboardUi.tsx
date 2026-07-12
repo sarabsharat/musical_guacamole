@@ -1,147 +1,61 @@
-// src/components/owner/DashboardUi.tsx
+"use client";
+
 import React from "react";
-import Link from "next/link";
-import { Recipe } from "@prisma/client";
-import { StatusBadge } from "@/components/shared/status-badge";
 
-// Shadcn & Icons
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ChefHat, Clock, CheckCircle2, AlertCircle, Plus, FileText } from "lucide-react";
-
-interface DashboardUIProps {
-    data: {
-        totalRecipes: number;
-        pendingCount: number;
-        approvedCount: number;
-        flaggedCount: number;
-        recentRecipes: Recipe[];
-    };
+// Define the exact shape of the data the server is passing down
+interface DashboardData {
+    totalRecipes: number;
+    pendingCount: number;
+    approvedCount: number;
+    flaggedCount: number;
+    recentRecipes: any[]; // You can replace 'any' with your Prisma Recipe type
 }
 
-export function DashboardUi({ data }: DashboardUIProps) {
-    const { totalRecipes, pendingCount, approvedCount, flaggedCount, recentRecipes } = data;
-
+export function DashboardUi({ data }: { data: DashboardData }) {
     return (
-        <div className="container mx-auto px-4 md:px-8 py-6 space-y-6 bg-background">
-            {/* Header & Actions */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Overview of your restaurant&apos;s compliance status and recipe portfolio.
-                    </p>
-                </div>
-                <div className="flex items-center space-x-3">
-                    <Link href="/owner/drafts">
-                        <Button variant="outline" className="flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
-                            View Drafts
-                        </Button>
-                    </Link>
-                    <Link href="/owner/submit">
-                        <Button className="flex items-center gap-2">
-                            <Plus className="h-4 w-4" />
-                            Ingest Recipe
-                        </Button>
-                    </Link>
-                </div>
+        <div className="flex flex-col gap-6 p-6">
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <StatCard title="Total Recipes" count={data.totalRecipes} color="bg-blue-100 text-blue-800" />
+                <StatCard title="Approved" count={data.approvedCount} color="bg-green-100 text-green-800" />
+                <StatCard title="Pending" count={data.pendingCount} color="bg-yellow-100 text-yellow-800" />
+                <StatCard title="Flagged" count={data.flaggedCount} color="bg-red-100 text-red-800" />
             </div>
 
-            {/* Top Metrics Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Recipes</CardTitle>
-                        <ChefHat className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{totalRecipes}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{pendingCount}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Approved</CardTitle>
-                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{approvedCount}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Issues Flagged</CardTitle>
-                        <AlertCircle className="h-4 w-4 text-destructive" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{flaggedCount}</div>
-                    </CardContent>
-                </Card>
+            {/* Recent Recipes Table */}
+            <div className="bg-white rounded shadow p-6 mt-6">
+                <h2 className="text-xl font-bold mb-4 border-b pb-2">Recent Recipes</h2>
+                {data.recentRecipes.length === 0 ? (
+                    <p className="text-gray-500">No recipes found.</p>
+                ) : (
+                    <ul className="divide-y">
+                        {data.recentRecipes.map((recipe) => (
+                            <li key={recipe.id} className="py-3 flex justify-between items-center">
+                                <span className="font-medium text-gray-800">{recipe.name || "Unnamed Recipe"}</span>
+                                <span className={`px-2 py-1 rounded text-sm font-bold ${
+                                    recipe.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                                        recipe.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-red-100 text-red-700'
+                                }`}>
+                                    {recipe.status}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
+        </div>
+    );
+}
 
-            {/* Recent Recipes List */}
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Recent Recipes</CardTitle>
-                        <CardDescription>Your latest submitted recipes and their current status.</CardDescription>
-                    </div>
-                    <Link href="/owner/recipes">
-                        <Button variant="ghost" className="text-sm">
-                            View All
-                        </Button>
-                    </Link>
-                </CardHeader>
-                <CardContent>
-                    {recentRecipes.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed rounded-lg bg-muted/20">
-                            <ChefHat className="h-10 w-10 text-muted-foreground mb-4 opacity-20" />
-                            <p className="text-sm font-medium text-muted-foreground mb-4">
-                                No recipes have been ingested yet.
-                            </p>
-                            <Link href="/owner/submit">
-                                <Button>Add your first recipe</Button>
-                            </Link>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {recentRecipes.map((recipe) => (
-                                <div
-                                    key={recipe.id}
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between rounded-lg border p-4 gap-4 bg-background shadow-sm transition-all hover:shadow-md"
-                                >
-                                    <div className="space-y-1">
-                                        <p className="text-base font-semibold leading-none text-foreground">
-                                            {recipe.meal_name}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground  ">
-                                            {Number(recipe.calories)} kcal • {Number(recipe.protein)}g P • {Number(recipe.carbs)}g C •{" "}
-                                            {Number(recipe.total_fat)}g F
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center space-x-4">
-                                        <StatusBadge status={recipe.status} />
-                                        <Link href={`/owner/recipes/${recipe.id}`}>
-                                            <Button variant="secondary" size="sm">
-                                                View
-                                            </Button>
-                                        </Link>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+// A simple reusable sub-component for the stats
+function StatCard({ title, count, color }: { title: string, count: number, color: string }) {
+    return (
+        <div className={`p-6 rounded shadow flex flex-col items-center justify-center ${color}`}>
+            <h3 className="text-sm uppercase font-bold tracking-wider opacity-80">{title}</h3>
+            <span className="text-4xl font-black mt-2">{count}</span>
         </div>
     );
 }

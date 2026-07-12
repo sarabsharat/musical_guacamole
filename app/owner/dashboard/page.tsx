@@ -1,13 +1,14 @@
+// src/app/owner/dashboard/page.tsx
 import { prisma } from "@/lib/prisma";
-import { serializePrisma } from "@/lib/serialize";
-import { requireOwnerAuth } from "@/lib/RequireOwnerAuth";
+import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
 import { DashboardUi } from "@/components/owner/DashboardUi";
+import {serializePrisma} from "@/lib/serialize";
 
 export default async function DashboardPage() {
-    // 1. Authenticate & Secure
+
+
     const { restaurantId } = await requireOwnerAuth();
 
-    // 2. Fetch all required data concurrently
     const [
         totalRecipes,
         pendingCount,
@@ -28,7 +29,6 @@ export default async function DashboardPage() {
         }),
     ]);
 
-    // 3. Package the data for the UI
     const dashboardData = {
         totalRecipes,
         pendingCount,
@@ -37,6 +37,5 @@ export default async function DashboardPage() {
         recentRecipes: serializePrisma(recentRecipes),
     };
 
-    // 4. Render the purely visual UI component, passing the secure data
     return <DashboardUi data={dashboardData} />;
 }

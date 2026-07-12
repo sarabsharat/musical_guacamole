@@ -55,7 +55,7 @@ export default function LandingPage() {
 
                     {/* Subtitle */}
                     <p className="max-w-2xl text-base sm:text-lg md:text-xl text-muted-foreground font-medium leading-relaxed mt-6">
-                        A centralized compliance and nutrition registry for Jordan's food industry.
+                        A centralized compliance and nutrition registry for Jordans food industry.
                         Restaurant owners, auditors, and government officers all in one place.
                     </p>
 
