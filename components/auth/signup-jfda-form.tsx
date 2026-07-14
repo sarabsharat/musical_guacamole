@@ -1,3 +1,4 @@
+// src/components/auth/signup-jfda-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -31,18 +32,17 @@ export function SignupOfficerForm() {
             return;
         }
 
-        // Hardcoded to strictly register as a JFDA officer
         const res = await registerUser(undefined, {
             email,
             password,
             full_name: fullName,
-            role: "jfda_officer"
+            role: "jfda_officer",
         });
 
         if (res.success) {
             const loginRes = await signIn("credentials", { email, password, redirect: false });
             if (loginRes?.ok) {
-                window.location.href = "/dashboard"; // Officers skip onboarding
+                window.location.href = "/dashboard";
             } else {
                 setError("Registration succeeded. Please log in manually.");
                 setIsLoading(false);
@@ -54,12 +54,12 @@ export function SignupOfficerForm() {
     };
 
     return (
-        <Card className="mx-auto w-full max-w-md md:max-w-lg relative border-blue-200">
-            <Link href="/signup" className="absolute top-4 left-4 text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <CardHeader className="pt-10">
-                <CardTitle className="text-xl text-center text-blue-900">Officer Registration</CardTitle>
+        <Card className="mx-auto w-full max-w-md">
+            <CardHeader className="relative">
+                <Link href="/signup" className="absolute top-4 left-4 text-muted-foreground hover:text-foreground">
+                    <ArrowLeft className="h-4 w-4" />
+                </Link>
+                <CardTitle className="text-center pt-4">Officer Registration</CardTitle>
                 <CardDescription className="text-center">JFDA Internal System Access</CardDescription>
             </CardHeader>
             <CardContent>
@@ -90,7 +90,7 @@ export function SignupOfficerForm() {
                         <Label htmlFor="confirm-password">Confirm Password</Label>
                         <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
                     </div>
-                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Submit Application
                     </Button>

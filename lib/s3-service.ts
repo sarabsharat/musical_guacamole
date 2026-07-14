@@ -6,7 +6,9 @@ import {
     PutBucketCorsCommand,
     PutBucketPolicyCommand,
     S3ClientConfig,
+    PutObjectCommand, // ✅ added for presigned URL
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"; // ✅ added
 
 // Determine local vs production endpoints
 export const STORAGE_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_URL || "http://localhost:9000";
@@ -128,4 +130,35 @@ export function ensureStorageBucket(): Promise<void> {
         });
     }
     return bucketReadyPromise;
+}
+
+export async function getPresignedUploadUrl({
+                                                fileKey,
+                                                fileType,
+                                                fileSize, // we keep it for validation but not required by the presigned URL
+                                            }: {
+    fileKey: string;
+    fileType: string;
+    fileSize: number;
+}) {
+    // Ensure the bucket exists before generating the URL
+    await ensureStorageBucket();
+
+    const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fileKey,
+        ContentType: fileType,
+        // You can add conditions like ContentLength but S3 presigned URLs don't enforce it by default
+        // We'll rely on the server action to validate size
+    });
+
+    // Generate a presigned URL valid for 5 minutes
+    const uploadUrl = await getSignedUrl(s3Client, command, {
+        expiresIn: 60 * 5, // 5 minutes
+    });
+
+    return {
+        uploadUrl,
+        fileKey,
+    };
 }

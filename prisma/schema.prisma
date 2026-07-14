@@ -81,6 +81,10 @@ model Restaurant {
   profile       KitchenControlProfile[]
   recipeDrafts  RecipeDraft[]
   auditLogs AuditLog[]
+  estimated_recipe_count Int?    // how many recipes they already have
+  delivery_apps         String[]
+  logo_url           String?   // URL to the restaurant logo
+  background_image_url String?
 }
 
 model IngredientReference {
@@ -131,6 +135,9 @@ model KitchenControlProfile {
   // Specific toggles for the two controls you want
   hasDedicatedAllergenZones Boolean @default(false)
   usesStandardizedRecipes   Boolean @default(false)
+  has_allergen_separation   Boolean @default(false)
+  uses_calorie_tracking     Boolean @default(false)
+  has_cross_contamination_plan Boolean @default(false)
 
   updatedAt  DateTime   @updatedAt
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])

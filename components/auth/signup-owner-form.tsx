@@ -1,3 +1,4 @@
+// src/components/auth/signup-owner-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -16,7 +17,6 @@ export function SignupOwnerForm() {
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [fullName, setFullName] = useState("");
-    const [businessName, setBusinessName] = useState("");
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
@@ -31,12 +31,11 @@ export function SignupOwnerForm() {
             return;
         }
 
-        // Hardcoded to strictly register as a restaurant owner
         const res = await registerUser(undefined, {
             email,
             password,
             full_name: fullName,
-            role: "restaurant_owner"
+            role: "restaurant_owner",
         });
 
         if (res.success) {
@@ -54,12 +53,12 @@ export function SignupOwnerForm() {
     };
 
     return (
-        <Card className="mx-auto w-full max-w-md md:max-w-lg relative relative">
-            <Link href="/signup" className="absolute top-4 left-4 text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <CardHeader className="pt-10">
-                <CardTitle className="text-xl text-center">Owner Registration</CardTitle>
+        <Card className="mx-auto w-full max-w-md">
+            <CardHeader className="relative">
+                <Link href="/signup" className="absolute top-4 left-4 text-muted-foreground hover:text-foreground">
+                    <ArrowLeft className="h-4 w-4" />
+                </Link>
+                <CardTitle className="text-center pt-4">Owner Registration</CardTitle>
                 <CardDescription className="text-center">Create your restaurant account</CardDescription>
             </CardHeader>
             <CardContent>
@@ -73,10 +72,6 @@ export function SignupOwnerForm() {
                     <div className="grid gap-2">
                         <Label htmlFor="full-name">Your Full Name</Label>
                         <Input id="full-name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="business-name">Business Name</Label>
-                        <Input id="business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} required />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="email">Email</Label>
@@ -94,7 +89,13 @@ export function SignupOwnerForm() {
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Create Account
                     </Button>
-                    <Button type="button" variant="outline" className="w-full" onClick={() => signIn("google", { callbackUrl: "/onboarding" })} disabled={isLoading}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => signIn("google", { callbackUrl: "/onboarding" })}
+                        disabled={isLoading}
+                    >
                         Sign up with Google
                     </Button>
                 </form>
