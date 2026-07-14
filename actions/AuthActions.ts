@@ -1,10 +1,10 @@
-// actions/AuthActions.ts - Phase 3: User Registration
+// actions/AuthActions.ts - UPGRADED: 3-Layer Security Protocol
 "use server";
 
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import {Role} from "@prisma/client";
+import { Role } from "@prisma/client";
 
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION SCHEMAS
@@ -20,46 +20,93 @@ const registerSchema = z.object({
 type RegisterInput = z.infer<typeof registerSchema>;
 
 // ═══════════════════════════════════════════════════════════════
-// REGISTER ACTION - Create new user account
+// REGISTER USER - Create new user account
 // ═══════════════════════════════════════════════════════════════
 
-export async function registerUser(input: z.infer<typeof registerSchema>) {
+export async function registerUser(_mockUser: unknown, input: RegisterInput) {
     try {
+        console.log("📝 [AuthAction] Registering user:", input.email);
+
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 2: ZOD VALIDATION - Validate input
+        // ═════════════════════════════════════════════════════════════════
         const validated = registerSchema.safeParse(input);
-        if (!validated.success) return { success: false, message: "Validation failed" };
+        if (!validated.success) {
+            console.log("❌ [AuthAction] Validation failed:", validated.error.issues);
+            return {
+                success: false,
+                message: validated.error.issues[0]?.message || "Validation failed",
+            };
+        }
 
         const { email, password, full_name, role } = validated.data;
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
-        if (existingUser) return { success: false, message: "Email already registered." };
+        // ═════════════════════════════════════════════════════════════════
+        // SECURITY CHECKS - Email uniqueness, password hashing
+        // ═════════════════════════════════════════════════════════════════
 
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (existingUser) {
+            console.log("❌ [AuthAction] Email already registered:", email);
+            return {
+                success: false,
+                message: "This email is already registered. Please login instead.",
+            };
+        }
+
+        // Hash password with bcrypt
         const hashedPassword = await bcrypt.hash(password, 10);
+        console.log("🔐 [AuthAction] Password hashed for:", email);
 
+        // Create user in database
         const newUser = await prisma.user.create({
             data: {
                 email,
                 full_name,
                 password_hash: hashedPassword,
-                role: role,
+                role,
                 is_active: true,
+                // restaurantId will be null until onboarding for owners
+            },
+            select: {
+                id: true,
+                email: true,
+                full_name: true,
+                role: true,
             },
         });
 
-        return { success: true, message: "Account created successfully." };
+        console.log("✅ [AuthAction] User created successfully:", email);
+
+        return {
+            success: true,
+            message: "Account created successfully. Please log in.",
+            data: {
+                userId: newUser.id,
+                email: newUser.email,
+            },
+        };
     } catch (error) {
-        console.error("❌ Registration error:", error);
-        return { success: false, message: "An error occurred during registration." };
+        console.error("❌ [AuthAction] Error registering user:", error);
+        return {
+            success: false,
+            message: "An error occurred during registration. Please try again.",
+        };
     }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// LOGOUT ACTION - Invalidate session
+// LOGOUT USER - Invalidate session
 // ═══════════════════════════════════════════════════════════════
 
-export async function logoutUser() {
+export async function logoutUser(_mockUser: unknown) {
     try {
         console.log("👋 [AuthAction] User logging out");
-        // Auth.js handles session deletion - we just need to return success
+
+        // Auth.js handles session deletion - we just return success
         return {
             success: true,
             message: "Logged out successfully",

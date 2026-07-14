@@ -68,6 +68,7 @@ export function DraftResolutionForm({ currentUser, draft, references }: any) {
     };
 
     // Approve and create recipe
+    // Approve and create recipe
     const handleApprove = async () => {
         setLoading(true);
         const finalizedIngredients = rows.map((row) => ({
@@ -76,7 +77,11 @@ export function DraftResolutionForm({ currentUser, draft, references }: any) {
             calculated_grams: row.normalizedGrams,
         }));
 
-        const res = await resolveDraftToRecipe(draft.id, finalizedIngredients);
+        // ✅ FIX: Wrap the data into a single payload object
+        const res = await resolveDraftToRecipe({
+            draftId: draft.id,
+            finalizedIngredients: finalizedIngredients
+        });
 
         if (res.success) {
             router.push("/owner/recipes");

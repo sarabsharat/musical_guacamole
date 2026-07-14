@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { getSecureUploadUrl } from "@/actions/media";
-import { Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { getSecureUploadUrl } from "@/actions/MediaActions";
+import { Upload, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface UploaderProps {
     onUploadSuccess: (url: string) => void;
@@ -18,6 +20,7 @@ export function DragDropUploader({ onUploadSuccess, onUploadError, onUploadStart
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const previewUrlRef = useRef<string | null>(null);
 
@@ -50,20 +53,28 @@ export function DragDropUploader({ onUploadSuccess, onUploadError, onUploadStart
     const processFile = async (file: File) => {
         if (!file) return;
 
+        setError(null);
+
         // Validate type
         if (!ALLOWED_TYPES.includes(file.type)) {
-            onUploadError("Invalid file type. Only JPEG, PNG, and WEBP images are allowed.");
+            const err = "Invalid file type. Only JPEG, PNG, and WEBP are allowed.";
+            setError(err);
+            onUploadError(err);
             return;
         }
 
         // Validate size
         if (file.size > MAX_SIZE) {
-            onUploadError("File exceeds 10MB.");
+            const err = "File exceeds 10MB limit.";
+            setError(err);
+            onUploadError(err);
             return;
         }
 
         if (file.size <= 0) {
-            onUploadError("The selected file appears to be empty.");
+            const err = "File appears to be empty.";
+            setError(err);
+            onUploadError(err);
             return;
         }
 
@@ -75,11 +86,15 @@ export function DragDropUploader({ onUploadSuccess, onUploadError, onUploadStart
         onUploadStart?.();
 
         try {
-            // Get presigned URL
-            const response = await getSecureUploadUrl(file.name, file.type, file.size);
+            // ✅ FIX: Removed file.size so it only passes the 2 expected arguments
+            const response = await getSecureUploadUrl(undefined, {
+                fileName: file.name,
+                fileType: file.type,
+                fileSize: file.size
+            });
 
             if (!response.success || !response.uploadUrl || !response.fileKey) {
-                throw new Error(response.message || "Failed to generate upload signature.");
+                throw new Error(response.message || "Failed to generate upload URL.");
             }
 
             setProgress(40);
@@ -95,7 +110,7 @@ export function DragDropUploader({ onUploadSuccess, onUploadError, onUploadStart
 
             if (!uploadResult.ok) {
                 const detail = `${uploadResult.status} ${uploadResult.statusText}`.trim();
-                throw new Error(`Direct upload to storage was rejected (${detail || "unknown error"}).`);
+                throw new Error(`Upload failed (${detail || "unknown error"}).`);
             }
 
             setProgress(90);
@@ -110,10 +125,11 @@ export function DragDropUploader({ onUploadSuccess, onUploadError, onUploadStart
         } catch (err: unknown) {
             const isNetworkError = err instanceof TypeError;
             const errMsg = isNetworkError
-                ? "Couldn't reach the storage service. Check your connection and try again."
+                ? "Network error. Check your connection and try again."
                 : err instanceof Error
                     ? err.message
-                    : "Media upload failure.";
+                    : "Upload failed.";
+            setError(errMsg);
             onUploadError(errMsg);
             setPreview(null);
         } finally {
@@ -138,87 +154,136 @@ export function DragDropUploader({ onUploadSuccess, onUploadError, onUploadStart
         }
     };
 
+    const handleClear = () => {
+        setPreview(null);
+        setProgress(0);
+        setError(null);
+    };
+
     const triggerInput = () => {
-        fileInputRef.current?.click();
+        if (!uploading && !previewUrl) {
+            fileInputRef.current?.click();
+        }
     };
 
     return (
-        <div
-            onDragEnter={handleDrag}
-            onDragOver={handleDrag}
-            onDragLeave={handleDrag}
-            onDrop={handleDrop}
-            onClick={triggerInput}
-            className={`
-                relative cursor-pointer rounded-lg border-2 border-dashed p-6 transition-colors
-                ${dragActive
-                ? "border-destructive bg-destructive/10"
-                : "border-border bg-muted/50"
-            }
-            `}
-        >
+        <div className="space-y-4">
             <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleFileChange}
-                onClick={(e) => e.stopPropagation()}
                 className="hidden"
             />
 
-            {previewUrl ? (
-                <div className="space-y-4">
-                    {/* Preview Image */}
-                    <div className="mx-auto relative h-40 w-40 overflow-hidden rounded-lg border-2 border-border bg-background">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={previewUrl} alt="Meal Preview" className="h-full w-full object-cover" />
-                    </div>
-
-                    {/* Status Text */}
-                    <div className="flex items-center justify-center gap-2 text-sm font-semibold">
-                        {uploading ? (
-                            <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                <span>Uploading...</span>
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                <span className="text-green-600">Image Loaded & Synced</span>
-                            </>
-                        )}
-                    </div>
-                </div>
-            ) : (
-                <div className="space-y-3 text-center">
-                    <div className="flex justify-center">
-                        <Upload className={`h-8 w-8 ${dragActive ? "text-destructive" : "text-muted-foreground"}`} />
-                    </div>
-                    <div>
-                        <div className="text-sm font-semibold">Drag meal image here</div>
-                        <p className="text-xs text-muted-foreground">
-                            OR CLICK TO BROWSE (JPEG, PNG, WEBP — MAX 10MB)
-                        </p>
-                    </div>
-                </div>
+            {/* Error Alert */}
+            {error && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
             )}
 
-            {/* Upload Progress Bar */}
-            {uploading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg bg-white/90 p-4 backdrop-blur-sm">
-                    <div className="w-full max-w-xs space-y-2">
-                        <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                                className="h-full bg-primary transition-all duration-300"
-                                style={{ width: `${progress}%` }}
+            {/* Upload Area */}
+            <div
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                onClick={triggerInput}
+                className={`
+                    relative cursor-pointer rounded-lg border-2 border-dashed transition-all duration-200
+                    ${dragActive
+                    ? "border-primary bg-primary/5 scale-105"
+                    : previewUrl
+                        ? "border-border bg-muted/50"
+                        : "border-border bg-muted/30 hover:bg-muted/50"
+                }
+                `}
+            >
+                {previewUrl ? (
+                    // Preview State
+                    <div className="p-6 space-y-4">
+                        <div className="mx-auto relative h-48 w-full max-w-sm overflow-hidden rounded-lg border bg-background">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={previewUrl}
+                                alt="Preview"
+                                className="h-full w-full object-cover"
                             />
                         </div>
-                        <p className="text-center text-xs font-semibold text-muted-foreground">
-                            Uploading... {progress}%
-                        </p>
+
+                        {/* Status */}
+                        <div className="flex items-center justify-center gap-2">
+                            {uploading ? (
+                                <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                    <span className="text-sm font-medium">Uploading...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    <span className="text-sm font-medium text-green-600">Image Ready</span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Progress Bar */}
+                        {uploading && (
+                            <div className="w-full space-y-2">
+                                <div className="relative h-2 w-full overflow-hidden rounded-full bg-border">
+                                    <div
+                                        className="h-full bg-primary transition-all duration-300"
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
+                                <p className="text-center text-xs text-muted-foreground">
+                                    {progress}% uploaded
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Clear Button */}
+                        {!uploading && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleClear();
+                                }}
+                                className="w-full gap-2"
+                            >
+                                <X className="h-4 w-4" />
+                                Choose Different Image
+                            </Button>
+                        )}
                     </div>
-                </div>
-            )}
+                ) : (
+                    // Empty State
+                    <div className="py-12 px-6 text-center space-y-3">
+                        <div className="flex justify-center">
+                            <div className="rounded-full bg-primary/10 p-4">
+                                <Upload className="h-8 w-8 text-primary" />
+                            </div>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-foreground">
+                                Drag your image here
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                or click to browse (JPEG, PNG, WEBP — max 10MB)
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Supported Formats Info */}
+            <p className="text-xs text-muted-foreground text-center">
+                Supported formats: JPEG, PNG, WebP • Maximum file size: 10MB
+            </p>
         </div>
     );
 }

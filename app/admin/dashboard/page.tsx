@@ -1,9 +1,13 @@
-import { RequireAdminAuth } from "@/lib/RequireAdminAuth";
-import prisma from "@/lib/prisma";
+import React from "react";
+// ✅ FIX 1: Correct path and camelCase function name
+import { requireAdminAuth } from "@/lib/Authentication/RequireAdminAuth";
+// ✅ FIX 2: Correct named import for prisma
+import { prisma } from "@/lib/prisma";
 
 export default async function AdminDashboardPage() {
-
-    await RequireAdminAuth();
+    // 🚨 SECURITY: Defense in depth (Even though our layout protects the folder,
+    // it is a great habit to keep the Auth Wall in the page too!)
+    await requireAdminAuth();
 
     const [totalUsers, totalRestaurants, totalRecipes] = await Promise.all([
         prisma.user.count(),

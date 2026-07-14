@@ -1,6 +1,6 @@
 // src/app/jfda/registry/layout.tsx.tsx
 import React from "react";
-import { getJfdaCertifiedRegistry, revokeRestaurantCompliance } from "@/actions/jfda";
+import { getJfdaCertifiedRegistry, revokeRestaurantCompliance } from "@/actions/JfdaActions";
 import { getSession, assertUserAccess } from "@/lib/security";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Role } from "@prisma/client";

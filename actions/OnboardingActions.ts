@@ -1,9 +1,10 @@
-// actions/OnboardingActions.ts
+// actions/OnboardingActions.ts - UPGRADED: 3-Layer Security Protocol
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "@/lib/auth";
+
 import { z } from "zod";
+import {requireOwnerAuth} from "@/lib/Authentication/RequireOwnerAuth";
 
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION SCHEMAS
@@ -40,20 +41,18 @@ function generateSlugFromName(name: string): string {
 // CREATE RESTAURANT ACTION
 // ═══════════════════════════════════════════════════════════════
 
-export async function createRestaurant(input: CreateRestaurantInput) {
+export async function createRestaurant(_mockUser: unknown, input: CreateRestaurantInput) {
     try {
-        console.log("🏪 [OnboardingAction] Creating restaurant:", input.business_name);
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 1: AUTH WALL - Get authenticated owner context
+        // ═════════════════════════════════════════════════════════════════
+        const { userId, restaurantId } = await requireOwnerAuth();
 
-        const session = await getServerSession();
+        console.log("🏪 [OnboardingAction] Creating restaurant for user:", userId);
 
-        if (!session || !session.id) {
-            console.log("❌ [OnboardingAction] User not authenticated");
-            return {
-                success: false,
-                message: "You must be logged in to create a restaurant.",
-            };
-        }
-
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 2: ZOD VALIDATION - Validate input payload
+        // ═════════════════════════════════════════════════════════════════
         const validated = createRestaurantSchema.safeParse(input);
         if (!validated.success) {
             console.log("❌ [OnboardingAction] Validation failed:", validated.error.issues);
@@ -64,7 +63,11 @@ export async function createRestaurant(input: CreateRestaurantInput) {
         }
 
         const { business_name, slug, address } = validated.data;
-        const ownerIdInt = parseInt(session.id, 10);
+        const ownerIdInt = Number(userId);
+
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 3: TENANT ISOLATION - Check owner context
+        // ═════════════════════════════════════════════════════════════════
 
         // Check if user already has a restaurant
         const existingRestaurant = await prisma.restaurant.findFirst({
@@ -79,7 +82,7 @@ export async function createRestaurant(input: CreateRestaurantInput) {
             };
         }
 
-        // Check if slug is unique
+        // Check if slug is unique (global check - no tenant filter)
         const existingSlug = await prisma.restaurant.findUnique({
             where: { slug },
         });
@@ -92,13 +95,13 @@ export async function createRestaurant(input: CreateRestaurantInput) {
             };
         }
 
-        // Create restaurant in database (No transaction needed since User table isn't modified)
+        // Create restaurant in database
         const newRestaurant = await prisma.restaurant.create({
             data: {
                 business_name,
                 slug,
                 owner_id: ownerIdInt,
-                address_line: address || "", // Mapped correctly to your schema
+                address_line: address || "",
                 cert_status: "PENDING",
                 cert_level: "LEVEL_1",
             },
@@ -128,22 +131,21 @@ export async function createRestaurant(input: CreateRestaurantInput) {
 // CHECK ONBOARDING STATUS
 // ═══════════════════════════════════════════════════════════════
 
-export async function checkOnboardingStatus() {
+export async function checkOnboardingStatus(_mockUser: unknown) {
     try {
-        const session = await getServerSession();
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 1: AUTH WALL
+        // ═════════════════════════════════════════════════════════════════
+        const { userId, restaurantId } = await requireOwnerAuth();
 
-        if (!session || !session.id) {
-            return {
-                success: true,
-                isOnboarded: false,
-                message: "Not authenticated",
-            };
-        }
+        const userIdInt = Number(userId);
 
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 3: TENANT ISOLATION - Fetch only this user's restaurant
+        // ═════════════════════════════════════════════════════════════════
         const user = await prisma.user.findUnique({
-            where: { id: parseInt(session.id, 10) },
+            where: { id: userIdInt },
             select: {
-                // Fetch the relation object directly instead of a non-existent scalar field
                 restaurant: {
                     select: {
                         slug: true,
@@ -154,13 +156,18 @@ export async function checkOnboardingStatus() {
 
         const isOnboarded = !!user?.restaurant?.slug;
 
-        console.log(`📋 [OnboardingAction] Onboarding status for user ${session.id}:`, isOnboarded);
+        console.log(
+            `📋 [OnboardingAction] Onboarding status for user ${userId}:`,
+            isOnboarded
+        );
 
         return {
             success: true,
             isOnboarded,
             slug: user?.restaurant?.slug || null,
-            message: isOnboarded ? "User has completed onboarding" : "User needs to complete onboarding",
+            message: isOnboarded
+                ? "User has completed onboarding"
+                : "User needs to complete onboarding",
         };
     } catch (error) {
         console.error("❌ [OnboardingAction] Error checking onboarding status:", error);
@@ -176,8 +183,16 @@ export async function checkOnboardingStatus() {
 // SUGGEST SLUG
 // ═══════════════════════════════════════════════════════════════
 
-export async function suggestSlug(businessName: string) {
+export async function suggestSlug(_mockUser: unknown, businessName: string) {
     try {
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 1: AUTH WALL - No sensitive operation, but verify auth
+        // ═════════════════════════════════════════════════════════════════
+        await requireOwnerAuth();
+
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 2: VALIDATION
+        // ═════════════════════════════════════════════════════════════════
         if (!businessName || businessName.length < 2) {
             return {
                 success: false,
@@ -187,6 +202,9 @@ export async function suggestSlug(businessName: string) {
 
         const suggestedSlug = generateSlugFromName(businessName);
 
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 3: NO TENANT ISOLATION - Slug check is global
+        // ═════════════════════════════════════════════════════════════════
         const existingSlug = await prisma.restaurant.findUnique({
             where: { slug: suggestedSlug },
         });

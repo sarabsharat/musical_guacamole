@@ -2,32 +2,31 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { assertUserAccess } from "@/lib/security";
-import { Prisma, RecipeStatus, Role } from "@prisma/client";
+import { Prisma, RecipeStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { serializePrisma } from "@/lib/serialize";
-import { FetchRecipesQuery, RecipeSnapshot, SessionUser, UpdateRecipePayload } from "@/lib/shared-types";
+import { FetchRecipesQuery, RecipeSnapshot, UpdateRecipePayload } from "@/lib/shared-types";
 import { calculateServerRecipeTotals } from "@/lib/utils/server-recipe-math";
 import {
     updateRecipeSchema,
     createManualRecipeSchema,
 } from "@/lib/validations/recipe-schema";
-import { requireOwnerAuth } from "@/lib/RequireOwnerAuth";
+import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth"; // 👈 Un-hackable security
 import { z } from "zod";
 
 // ───────────────────────────────────────────────────────────────
-// ─── Get Owner Recipes (existing, unchanged) ─────────────────
+// ─── Get Owner Recipes ─────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
-export async function getOwnerRecipes(currentUser: SessionUser, query: FetchRecipesQuery) {
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
-    if (!currentUser.restaurantId) {
-        throw new Error("Security Violation: No tenant context found.");
-    }
+export async function getOwnerRecipes(_mockUser: unknown, query: FetchRecipesQuery) {
+    // 🚨 SECURITY 1: Auth Wall (Ignores the mockUser passed from the client)
+    const { restaurantId } = await requireOwnerAuth();
 
     try {
         const skip = (query.page - 1) * query.limit;
+
+        // 🚨 SECURITY 3: Strict Tenant Isolation
         const whereClause: Prisma.RecipeWhereInput = {
-            restaurant_id: currentUser.restaurantId,
+            restaurant_id: restaurantId,
             ...(query.status ? { status: query.status } : {}),
             ...(query.search
                 ? {
@@ -65,24 +64,19 @@ export async function getOwnerRecipes(currentUser: SessionUser, query: FetchReci
 }
 
 // ───────────────────────────────────────────────────────────────
-// ─── Revert to Recipe Version (existing) ─────────────────────
+// ─── Revert to Recipe Version ──────────────────────────────────
 // ───────────────────────────────────────────────────────────────
-export async function revertToRecipeVersion(
-    currentUser: SessionUser,
-    recipeId: number,
-    versionId: number
-) {
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
-    if (!currentUser.restaurantId) {
-        throw new Error("Security Violation: No tenant context found.");
-    }
+export async function revertToRecipeVersion(_mockUser: unknown, recipeId: number, versionId: number) {
+    // 🚨 SECURITY 1: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
 
     try {
+        // 🚨 SECURITY 3: Tenant Isolation Verification
         const versionRecord = await prisma.recipeVersion.findFirst({
             where: {
                 id: versionId,
                 recipe_id: recipeId,
-                recipe: { restaurant_id: currentUser.restaurantId },
+                recipe: { restaurant_id: restaurantId }, // 👈 Locks to the authenticated tenant
             },
         });
 
@@ -147,10 +141,11 @@ export async function revertToRecipeVersion(
                 });
             }
 
+            // 👈 FIX: Convert Auth.js string ID to Prisma Int ID
             await tx.auditLog.create({
                 data: {
-                    actor_id: currentUser.id,
-                    restaurant_id: currentUser.restaurantId!,
+                    actor_id: Number(userId),
+                    restaurant_id: restaurantId,
                     recipe_id: recipeId,
                     action: "RECIPE_REVERTED_TO_SNAPSHOT",
                     payload: { version_id: versionId },
@@ -159,7 +154,7 @@ export async function revertToRecipeVersion(
         });
 
         revalidatePath(`/owner/recipes/${recipeId}`);
-        revalidatePath(`/recipes/${recipeId}`);
+        revalidatePath(`/owner/recipes`);
         return { success: true, message: "Recipe reverted successfully. Pending for Re-verification" };
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Failed to roll back recipe version.";
@@ -168,18 +163,13 @@ export async function revertToRecipeVersion(
 }
 
 // ───────────────────────────────────────────────────────────────
-// ─── Update Recipe (existing, unchanged) ─────────────────────
+// ─── Update Recipe ─────────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
-export async function updateRecipe(
-    currentUser: SessionUser,
-    recipeId: number,
-    payload: UpdateRecipePayload
-) {
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser.restaurantId);
-    if (!currentUser.restaurantId) {
-        throw new Error("Security Violation: No tenant context found.");
-    }
+export async function updateRecipe(_mockUser: unknown, recipeId: number, payload: UpdateRecipePayload) {
+    // 🚨 SECURITY 1: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
 
+    // 🚨 SECURITY 2: Validation
     const validated = updateRecipeSchema.safeParse(payload);
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
@@ -187,6 +177,15 @@ export async function updateRecipe(
     const validData = validated.data;
 
     try {
+        // 🚨 SECURITY 3: Tenant Isolation Verification (Ensure they own this recipe before updating)
+        const existingRecipe = await prisma.recipe.findFirst({
+            where: { id: recipeId, restaurant_id: restaurantId }
+        });
+
+        if (!existingRecipe) {
+            return { success: false, message: "Recipe not found or access denied." };
+        }
+
         const ingredientRefs = await prisma.ingredientReference.findMany({
             where: { id: { in: validData.ingredients.map((i) => i.ingredient_id) } },
         });
@@ -223,10 +222,11 @@ export async function updateRecipe(
                 },
             });
 
+            // 👈 FIX: Convert Auth.js string ID to Prisma Int ID
             await tx.auditLog.create({
                 data: {
-                    actor_id: currentUser.id,
-                    restaurant_id: currentUser.restaurantId!,
+                    actor_id: Number(userId),
+                    restaurant_id: restaurantId,
                     recipe_id: recipeId,
                     action: "RECIPE_UPDATED_BY_OWNER",
                     payload: JSON.parse(JSON.stringify({
@@ -247,22 +247,24 @@ export async function updateRecipe(
 }
 
 // ───────────────────────────────────────────────────────────────
-// ─── Get Recipe Details ──────────────────────────────────────
+// ─── Get Recipe Details ────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
 export async function getRecipeDetails(recipeId: number) {
-    // Validate the input
+    // 🚨 SECURITY 1: Auth Wall
+    const { restaurantId } = await requireOwnerAuth();
+
+    // 🚨 SECURITY 2: Validation
     const validated = z.number().int().positive().safeParse(recipeId);
     if (!validated.success) {
         return { success: false, message: "Invalid recipe ID." };
     }
 
-    const { restaurantId } = await requireOwnerAuth();
-
     try {
+        // 🚨 SECURITY 3: Tenant Isolation
         const recipe = await prisma.recipe.findUnique({
             where: {
                 id: recipeId,
-                restaurant_id: restaurantId, // ensures ownership
+                restaurant_id: restaurantId,
             },
             include: {
                 ingredients: {
@@ -290,11 +292,13 @@ export async function getRecipeDetails(recipeId: number) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// ─── Create Manual Recipe (without AI) ──────────────────────
+// ─── Create Manual Recipe (without AI) ─────────────────────────
 // ───────────────────────────────────────────────────────────────
 export async function createManualRecipe(payload: unknown) {
-    const { restaurantId } = await requireOwnerAuth();
+    // 🚨 SECURITY 1: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
 
+    // 🚨 SECURITY 2: Validation
     const validated = createManualRecipeSchema.safeParse(payload);
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
@@ -302,7 +306,6 @@ export async function createManualRecipe(payload: unknown) {
     const validData = validated.data;
 
     try {
-        // Fetch ingredient references to compute totals
         const ingredientRefs = await prisma.ingredientReference.findMany({
             where: { id: { in: validData.ingredients.map((i) => i.ingredient_id) } },
         });
@@ -310,7 +313,7 @@ export async function createManualRecipe(payload: unknown) {
         const totals = calculateServerRecipeTotals(validData.ingredients, ingredientRefs);
 
         const newRecipe = await prisma.$transaction(async (tx) => {
-            // Create the recipe
+            // 🚨 SECURITY 3: Tenant Isolation applied on creation
             const recipe = await tx.recipe.create({
                 data: {
                     restaurant_id: restaurantId,
@@ -326,7 +329,6 @@ export async function createManualRecipe(payload: unknown) {
                 },
             });
 
-            // Add ingredients
             for (const rawIng of validData.ingredients) {
                 await tx.recipeIngredient.create({
                     data: {
@@ -338,10 +340,10 @@ export async function createManualRecipe(payload: unknown) {
                 });
             }
 
-            // Audit log
+            // 👈 FIX: Convert Auth.js string ID to Prisma Int ID
             await tx.auditLog.create({
                 data: {
-                    actor_id: (await requireOwnerAuth()).currentUser?.id, // we need the user id from session, but requireOwnerAuth only returns restaurantId? We'll adjust.
+                    actor_id: Number(userId),
                     restaurant_id: restaurantId,
                     recipe_id: recipe.id,
                     action: "MANUAL_RECIPE_CREATED",
@@ -360,8 +362,3 @@ export async function createManualRecipe(payload: unknown) {
         return { success: false, message: errorMessage };
     }
 }
-
-// ─── Alias for revert (if needed) ────────────────────────────
-// If you want a separate function named `revertRecipetoVersion` that calls the existing one,
-// you can export it as:
-export const revertRecipetoVersion = revertToRecipeVersion;

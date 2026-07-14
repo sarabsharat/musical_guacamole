@@ -1,20 +1,17 @@
 // src/app/owner/recipes/[id]/page.tsx
 import React from "react";
-import { notFound, redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { serializePrisma } from "@/lib/serialize";
-import { getSession, assertUserAccess } from "@/lib/security";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { revertToRecipeVersion } from "@/actions/RecipesActions";
-import { Role } from "@prisma/client";
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
+import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
+import { StatusBadge } from "@/components/shared/status-badge";
 
 // Shadcn UI & Icons
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { ChevronLeft, History, ImageIcon, Pencil, Utensils, Scale } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Edit, ChefHat, Info, Activity } from "lucide-react";
 
 interface PageProps {
     params: Promise<{
@@ -23,13 +20,10 @@ interface PageProps {
 }
 
 export default async function RecipeDetailPage({ params }: PageProps) {
-    // 1. Fetch user session
-    const currentUser = await getSession();
+    // 1. 🚨 SECURITY: Auth Wall
+    const { restaurantId } = await requireOwnerAuth();
 
-    // 2. SECURITY: Ensure owner is logged in and belongs to this tenant
-    await assertUserAccess(currentUser, [Role.restaurant_owner], currentUser?.restaurantId);
-
-    // 3. Resolve dynamic ID
+    // 2. Resolve dynamic parameters safely
     const { id } = await params;
     const recipeId = parseInt(id, 10);
 
@@ -37,20 +31,17 @@ export default async function RecipeDetailPage({ params }: PageProps) {
         return notFound();
     }
 
-    // 4. Query Recipe with Double Security (ID + Tenant filtering)
+    // 3. 🚨 SECURITY: Tenant Isolation (Locked to their restaurantId)
     const recipe = await prisma.recipe.findFirst({
         where: {
             id: recipeId,
-            restaurant_id: currentUser!.restaurantId!,
+            restaurant_id: restaurantId,
         },
         include: {
             ingredients: {
                 include: {
                     ingredient_item: true,
                 },
-            },
-            versions: {
-                orderBy: { created_at: "desc" },
             },
         },
     });
@@ -59,206 +50,159 @@ export default async function RecipeDetailPage({ params }: PageProps) {
         return notFound();
     }
 
-    const serializedRecipe = serializePrisma(recipe);
-
-    // 5. Server Action wrapper to handle Rollback trigger
-    async function handleRollback(formData: FormData) {
-        "use server";
-        const versionIdStr = formData.get("versionId")?.toString();
-        if (!versionIdStr) return;
-
-        const versionId = parseInt(versionIdStr, 10);
-        const res = await revertToRecipeVersion(currentUser!, recipeId, versionId);
-
-        if (res.success) {
-            redirect(`/recipes/${recipeId}`);
-        }
-    }
-
-    // Check if the recipe is in a state that allows editing
-    const isEditable = serializedRecipe.status === "REJECTED" || serializedRecipe.status === "REVOKED";
-
     return (
-        <div className="flex-1 space-y-6 p-8 pt-6 bg-background">
-
-            {/* Breadcrumb & Navigation */}
-            <div className="flex items-center text-sm text-muted-foreground mb-4">
-                <Link href="/owner/recipes" className="hover:text-foreground transition-colors flex items-center">
-                    <ChevronLeft className="mr-1 h-4 w-4" /> Menu Portfolio
-                </Link>
-                <span className="mx-2">/</span>
-                <span className="text-foreground font-medium">Recipe Audit File #{serializedRecipe.id}</span>
-            </div>
-
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b pb-6">
-                <div className="space-y-2">
+        <div className="container mx-auto px-4 md:px-8 py-6 space-y-6 bg-background">
+            {/* Navigation & Header */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-4 border-b border-border">
+                <div className="space-y-1">
+                    <Link
+                        href="/owner/recipes"
+                        className="text-sm text-muted-foreground hover:text-foreground flex items-center transition-colors mb-2"
+                    >
+                        <ArrowLeft className="mr-1 h-4 w-4" /> Back to Menu Portfolio
+                    </Link>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                            {serializedRecipe.meal_name}
-                        </h1>
-                        <StatusBadge status={serializedRecipe.status} />
+                        <h1 className="text-3xl font-bold tracking-tight">{recipe.meal_name}</h1>
+                        <StatusBadge status={recipe.status} />
                     </div>
-                    {serializedRecipe.preparation_notes && (
-                        <p className="text-muted-foreground italic">
-                            &ldquo;{serializedRecipe.preparation_notes}&rdquo;
-                        </p>
-                    )}
                 </div>
-
-                {/* Unified Edit Action */}
-                <div className="flex gap-2 shrink-0">
-                    {isEditable && (
-                        <Link
-                            href={`/owner/recipes/${serializedRecipe.id}/edit`}
-                            className={buttonVariants({ variant: "default" })}
-                        >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit Recipe
-                        </Link>
-                    )}
+                <div className="flex gap-2">
+                    <Link href={`/owner/recipes/${recipe.id}/edit`} className={buttonVariants({ variant: "default" })}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit Recipe
+                    </Link>
                 </div>
             </div>
 
-            {/* Main Layout Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* Left Column (2/3 width): Nutrition & Ingredients */}
-                <div className="lg:col-span-2 space-y-6">
-
-                    {/* Macros Panel */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Left Column: Image & Prep Notes */}
+                <div className="md:col-span-1 space-y-6">
                     <Card>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="flex items-center text-lg">
-                                <Scale className="mr-2 h-5 w-5 text-muted-foreground" />
-                                Active Nutrition Ledger
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <ChefHat className="h-5 w-5 text-muted-foreground" />
+                                Preparation
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {recipe.image_url ? (
+                                <div className="rounded-md overflow-hidden border">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={recipe.image_url}
+                                        alt={recipe.meal_name}
+                                        className="w-full h-48 object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-full h-32 bg-muted flex items-center justify-center rounded-md border border-dashed">
+                                    <span className="text-muted-foreground text-sm">No image provided</span>
+                                </div>
+                            )}
+                            <div>
+                                <h4 className="font-semibold text-sm mb-1">Chef's Notes:</h4>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                    {recipe.preparation_notes || "No preparation notes recorded."}
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Allergens Card */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Info className="h-5 w-5 text-muted-foreground" />
+                                Detected Allergens
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 rounded-lg border bg-muted/50 p-4">
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Calories</p>
-                                    <p className="text-2xl font-bold">{Number(serializedRecipe.calories)}</p>
+                            <div className="flex flex-wrap gap-2">
+                                {recipe.detected_allergens && recipe.detected_allergens.length > 0 ? (
+                                    recipe.detected_allergens.map((allergen: string) => (
+                                        <Badge key={allergen} variant="destructive" className="uppercase tracking-wide">
+                                            {allergen}
+                                        </Badge>
+                                    ))
+                                ) : (
+                                    <span className="text-sm text-muted-foreground italic">No allergens detected.</span>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Right Column: Macros & Ingredients Grid */}
+                <div className="md:col-span-2 space-y-6">
+                    {/* Macro Overview */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Activity className="h-5 w-5 text-muted-foreground" />
+                                Nutritional Profile
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="p-4 bg-muted/50 rounded-lg border text-center">
+                                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Calories</p>
+                                    <p className="text-2xl font-black">{Number(recipe.calories)}</p>
                                 </div>
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Protein</p>
-                                    <p className="text-2xl font-bold">{Number(serializedRecipe.protein)}g</p>
+                                <div className="p-4 bg-blue-500/10 border-blue-200 text-blue-900 dark:text-blue-300 rounded-lg border text-center">
+                                    <p className="text-xs uppercase font-bold tracking-wider mb-1">Protein</p>
+                                    <p className="text-2xl font-black">{Number(recipe.protein)}g</p>
                                 </div>
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Carbs</p>
-                                    <p className="text-2xl font-bold">{Number(serializedRecipe.carbs)}g</p>
+                                <div className="p-4 bg-amber-500/10 border-amber-200 text-amber-900 dark:text-amber-300 rounded-lg border text-center">
+                                    <p className="text-xs uppercase font-bold tracking-wider mb-1">Carbs</p>
+                                    <p className="text-2xl font-black">{Number(recipe.carbs)}g</p>
                                 </div>
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Total Fat</p>
-                                    <p className="text-2xl font-bold">{Number(serializedRecipe.total_fat)}g</p>
+                                <div className="p-4 bg-red-500/10 border-red-200 text-red-900 dark:text-red-300 rounded-lg border text-center">
+                                    <p className="text-xs uppercase font-bold tracking-wider mb-1">Fat</p>
+                                    <p className="text-2xl font-black">{Number(recipe.total_fat)}g</p>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Ingredients List */}
+                    {/* Ingredients Table */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center text-lg">
-                                <Utensils className="mr-2 h-5 w-5 text-muted-foreground" />
-                                Ingredient Composition
-                            </CardTitle>
-                            <CardDescription>Verified components and calculated macros</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {serializedRecipe.ingredients.map((ing: any, index: number) => (
-                                <React.Fragment key={ing.id}>
-                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                        <div className="space-y-1">
-                                            <p className="font-semibold text-foreground">
-                                                {ing.ingredient_item.name}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                Stated: {ing.user_stated_amount}
-                                            </p>
-                                        </div>
-                                        <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-1 text-sm text-right">
-                                            <span className="  bg-muted px-2 py-1 rounded-md">
-                                                {Number(ing.normalized_grams)}g
-                                            </span>
-                                            <span className="text-muted-foreground">
-                                                {(Number(ing.ingredient_item.calories_per_g) * Number(ing.normalized_grams)).toFixed(1)} kcal
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {index !== serializedRecipe.ingredients.length - 1 && <Separator />}
-                                </React.Fragment>
-                            ))}
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Right Column (1/3 width): Visuals & History */}
-                <div className="lg:col-span-1 space-y-6">
-
-                    {/* Visual Reference */}
-                    {serializedRecipe.image_url && (
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="flex items-center text-sm font-medium">
-                                    <ImageIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                                    Visual Reference
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="relative w-full aspect-video rounded-md overflow-hidden bg-muted">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={serializedRecipe.image_url}
-                                        alt={serializedRecipe.meal_name}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                    />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Version History */}
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center text-sm font-medium">
-                                <History className="mr-2 h-4 w-4 text-muted-foreground" />
-                                Compliance History
-                            </CardTitle>
-                            <CardDescription className="text-xs">
-                                Rollback resets the active state to PENDING.
-                            </CardDescription>
+                            <CardTitle>Ingredients Breakdown</CardTitle>
+                            <CardDescription>Verified components mapped to JFDA global standards.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-4">
-                                {serializedRecipe.versions.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground italic text-center py-4 border-2 border-dashed rounded-md">
-                                        No approved snapshots exist.
-                                    </p>
-                                ) : (
-                                    serializedRecipe.versions.map((ver: any) => (
-                                        <div key={ver.id} className="flex flex-col gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
-                                            <div>
-                                                <p className="text-sm font-semibold">Snapshot #{ver.id}</p>
-                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                    {new Date(ver.created_at).toLocaleString()}
-                                                </p>
-                                            </div>
-                                            <form action={handleRollback} className="w-full">
-                                                <input type="hidden" name="versionId" value={ver.id} />
-                                                <Button
-                                                    type="submit"
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    className="w-full"
-                                                >
-                                                    <History className="mr-2 h-3 w-3" />
-                                                    Revert to this version
-                                                </Button>
-                                            </form>
-                                        </div>
-                                    ))
-                                )}
+                            <div className="rounded-md border overflow-hidden">
+                                <Table>
+                                    <TableHeader className="bg-muted/50">
+                                        <TableRow>
+                                            <TableHead className="font-semibold">Ingredient Component</TableHead>
+                                            <TableHead className="font-semibold">Stated Amount</TableHead>
+                                            <TableHead className="font-semibold text-right">Weight (g)</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {recipe.ingredients.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                                                    No ingredients linked to this recipe.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            recipe.ingredients.map((ing: any) => (
+                                                <TableRow key={ing.id}>
+                                                    <TableCell className="font-medium">
+                                                        {ing.ingredient_item?.name || "Unknown Item"}
+                                                    </TableCell>
+                                                    <TableCell className="text-muted-foreground text-sm">
+                                                        {ing.user_stated_amount || "-"}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-sm">
+                                                        {Number(ing.normalized_grams)}g
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </CardContent>
                     </Card>

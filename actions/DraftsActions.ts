@@ -2,16 +2,15 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { assertUserAccess, getSession } from "@/lib/security";
 import { parseAndMapUnstructuredInput, ExtractedIngredientDraft } from "@/lib/ai-pipeline";
-import { Role, DraftStatus, RecipeStatus } from "@prisma/client";
+import { DraftStatus, RecipeStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { requireOwnerAuth } from "@/lib/RequireOwnerAuth";
+import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
 import {
     submitDraftSchema,
     resolveDraftSchema,
     deleteDraftSchema,
-} from "@/lib/validations/draft-schema"; // 👈 use your existing file
+} from "@/lib/validations/draft-schema";
 
 type FinalizedIngredient = {
     resolved_ingredient_id: number | null;
@@ -24,9 +23,14 @@ type AIResolvedIngredient = ExtractedIngredientDraft & {
 };
 
 // ─── Submit Raw Draft ──────────────────────────────────────────────────────────
-export async function submitRawDraft(payload: unknown) {
-    const { restaurantId } = await requireOwnerAuth();
+export async function submitRawDraft(arg1: unknown, arg2?: unknown) {
+    // 🚨 SECURITY 1: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
 
+    // 🚨 Smart Payload: Handle if client sends (mockUser, payload) OR just (payload)
+    const payload = arg2 !== undefined ? arg2 : arg1;
+
+    // 🚨 SECURITY 2: Validation
     const validated = submitDraftSchema.safeParse(payload);
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
@@ -41,6 +45,7 @@ export async function submitRawDraft(payload: unknown) {
             aiGeneratedIngredients = await parseAndMapUnstructuredInput(raw_text, image_url);
         }
 
+        // 🚨 SECURITY 3: Tenant Isolation applied on creation
         await prisma.recipeDraft.create({
             data: {
                 restaurant_id: restaurantId,
@@ -54,14 +59,21 @@ export async function submitRawDraft(payload: unknown) {
         revalidatePath("/owner/drafts");
         return { success: true, message: "Draft analyzed and created!" };
     } catch (error: unknown) {
-        console.error("Draft Submission Error:", error);
+        console.error("❌ Draft Submission Error:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to process draft with AI.";
         return { success: false, message: errorMessage };
     }
 }
 
 // ─── Resolve Draft to Recipe ──────────────────────────────────────────────────
-export async function resolveDraftToRecipe(payload: unknown) {
+export async function resolveDraftToRecipe(arg1: unknown, arg2?: unknown) {
+    // 🚨 SECURITY 1: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
+
+    // 🚨 Smart Payload: Prevents schema failure if the form sends the mockUser first
+    const payload = arg2 !== undefined ? arg2 : arg1;
+
+    // 🚨 SECURITY 2: Validation
     const validated = resolveDraftSchema.safeParse(payload);
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
@@ -70,8 +82,18 @@ export async function resolveDraftToRecipe(payload: unknown) {
     const { draftId, finalizedIngredients } = validated.data;
 
     try {
-        const draft = await prisma.recipeDraft.findUnique({ where: { id: draftId } });
-        if (!draft) throw new Error("Draft not found.");
+        // 🚨 SECURITY 3: Tenant Isolation Verification
+        const draft = await prisma.recipeDraft.findFirst({
+            where: {
+                id: draftId,
+                restaurant_id: restaurantId
+            }
+        });
+
+        if (!draft) {
+            console.error(`🚨 [SECURITY] Unauthorized resolution attempt on Draft ID: ${draftId}`);
+            throw new Error("Draft not found or access denied.");
+        }
 
         // 1. Filter out ingredients without a resolved ID
         const validIngredients = finalizedIngredients.filter(
@@ -85,10 +107,9 @@ export async function resolveDraftToRecipe(payload: unknown) {
             select: { id: true, calories_per_g: true, protein_per_g: true, carbs_per_g: true, fat_per_g: true },
         });
 
-        // 3. Build a map for fast lookup
         const refMap = new Map(references.map((ref) => [ref.id, ref]));
 
-        // 4. Compute totals
+        // 3. Compute totals
         let totalCalories = 0;
         let totalProtein = 0;
         let totalCarbs = 0;
@@ -112,53 +133,83 @@ export async function resolveDraftToRecipe(payload: unknown) {
             };
         });
 
-        // 5. Create the recipe with computed values
-        const newRecipe = await prisma.recipe.create({
-            data: {
-                restaurant_id: draft.restaurant_id,
-                meal_name: `Recipe from Draft #${draft.id}`,
-                preparation_notes: draft.raw_input_text || "",
-                image_url: draft.image_url || "",
-                status: RecipeStatus.PENDING,
-                calories: totalCalories,
-                protein: totalProtein,
-                carbs: totalCarbs,
-                total_fat: totalFat,
-                // You may also set detected_allergens, but we'll skip for now
-                ingredients: { create: ingredientCreates },
-            },
-        });
+        // 4. Secure Database Transaction
+        const newRecipe = await prisma.$transaction(async (tx) => {
+            // Create the recipe
+            const recipe = await tx.recipe.create({
+                data: {
+                    restaurant_id: restaurantId,
+                    meal_name: `Recipe from Draft #${draft.id}`,
+                    preparation_notes: draft.raw_input_text || "",
+                    image_url: draft.image_url || "",
+                    status: RecipeStatus.PENDING,
+                    calories: totalCalories,
+                    protein: totalProtein,
+                    carbs: totalCarbs,
+                    total_fat: totalFat,
+                    ingredients: { create: ingredientCreates },
+                },
+            });
 
-        await prisma.recipeDraft.delete({ where: { id: draftId } });
+            // Delete the draft now that it is resolved
+            await tx.recipeDraft.deleteMany({
+                where: { id: draftId, restaurant_id: restaurantId }
+            });
+
+            // Log the action (casting ID to Number)
+            await tx.auditLog.create({
+                data: {
+                    actor_id: Number(userId),
+                    restaurant_id: restaurantId,
+                    recipe_id: recipe.id,
+                    action: "RECIPE_CREATED_FROM_DRAFT",
+                    payload: { draft_id: draftId },
+                }
+            });
+
+            return recipe;
+        });
 
         revalidatePath("/owner/drafts");
         revalidatePath("/owner/recipes");
         return { success: true, recipeId: newRecipe.id };
     } catch (error: unknown) {
-        console.error("Resolution Error:", error);
+        console.error("❌ Resolution Error:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to save recipe to database.";
         return { success: false, message: errorMessage };
     }
 }
 
 // ─── Get Drafts ────────────────────────────────────────────────────────────────
-export async function getDrafts() {
-    await requireOwnerAuth();
+export async function getDrafts(_mockUser?: unknown) {
+    // 🚨 SECURITY 1: Auth Wall
+    const { restaurantId } = await requireOwnerAuth();
 
     try {
+        // 🚨 SECURITY 3: Tenant Isolation
         const drafts = await prisma.recipeDraft.findMany({
-            where: { status: DraftStatus.RESOLVED }, // or all; adjust as needed
+            where: {
+                restaurant_id: restaurantId,
+                status: DraftStatus.RESOLVED
+            },
             orderBy: { created_at: "desc" },
         });
         return { success: true, data: drafts };
     } catch (error) {
-        console.error("Get drafts error:", error);
+        console.error("❌ Get drafts error:", error);
         return { success: false, message: "Failed to fetch drafts." };
     }
 }
 
 // ─── Delete Draft ──────────────────────────────────────────────────────────────
-export async function deleteDraft(payload: unknown) {
+export async function deleteDraft(arg1: unknown, arg2?: unknown) {
+    // 🚨 SECURITY 1: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
+
+    // Smart Payload handling
+    const payload = arg2 !== undefined ? arg2 : arg1;
+
+    // 🚨 SECURITY 2: Validation
     const validated = deleteDraftSchema.safeParse(payload);
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
@@ -167,17 +218,40 @@ export async function deleteDraft(payload: unknown) {
     const { id } = validated.data;
 
     try {
-        await prisma.recipeDraft.delete({ where: { id } });
+        await prisma.$transaction(async (tx) => {
+            // 🚨 SECURITY 3: Tenant Isolation
+            const result = await tx.recipeDraft.deleteMany({
+                where: {
+                    id: id,
+                    restaurant_id: restaurantId
+                }
+            });
+
+            if (result.count === 0) {
+                throw new Error("Draft not found or access denied.");
+            }
+
+            await tx.auditLog.create({
+                data: {
+                    actor_id: Number(userId),
+                    restaurant_id: restaurantId,
+                    action: "DRAFT_DELETED",
+                    payload: { draft_id: id },
+                }
+            });
+        });
+
         revalidatePath("/owner/drafts");
         return { success: true, message: "Draft deleted." };
-    } catch (error) {
-        console.error("Delete draft error:", error);
-        return { success: false, message: "Failed to delete draft." };
+    } catch (error: unknown) {
+        console.error("❌ Delete draft error:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to delete draft.";
+        return { success: false, message: errorMessage };
     }
 }
 
 // ─── Get Own Certification Status ─────────────────────────────────────────────
-export async function getOwnCertificationStatus() {
+export async function getOwnCertificationStatus(_mockUser?: unknown) {
     const { restaurantId } = await requireOwnerAuth();
 
     try {
@@ -209,18 +283,18 @@ export async function getOwnCertificationStatus() {
             },
         };
     } catch (error) {
-        console.error("Get certification status error:", error);
+        console.error("❌ Get certification status error:", error);
         return { success: false, message: "Failed to fetch certification status." };
     }
 }
 
 // ─── Get Kitchen Profile ──────────────────────────────────────────────────────
-export async function getKitchenProfile() {
+export async function getKitchenProfile(_mockUser?: unknown) {
     const { restaurantId } = await requireOwnerAuth();
 
     try {
         const profile = await prisma.kitchenControlProfile.findUnique({
-            where: { restaurantId },
+            where: { restaurantId }, // Implicit Tenant Isolation
         });
 
         if (!profile) {
@@ -235,7 +309,7 @@ export async function getKitchenProfile() {
 
         return { success: true, data: profile };
     } catch (error) {
-        console.error("Get kitchen profile error:", error);
+        console.error("❌ Get kitchen profile error:", error);
         return { success: false, message: "Failed to fetch kitchen profile." };
     }
 }

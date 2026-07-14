@@ -25,6 +25,7 @@ export interface Recipe {
     rejection_reason?: string | null;
     detected_allergens?: string[];
     versions?: RecipeVersion[];
+    created_at: string;
 }
 
 export interface RecipeVersion {
