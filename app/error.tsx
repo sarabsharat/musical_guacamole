@@ -1,4 +1,21 @@
+// app/error.tsx
 "use client";
-export default function ErrorBoundary({ error }: { error: Error }) {
-    return <div className="p-4 bg-red-500 text-white  ">Error: {error.message}</div>;
+
+import { StatusScreen } from "@/components/ui/status-screen";
+
+interface ErrorBoundaryProps {
+    error: Error;
+    reset: () => void;
+}
+
+export default function ErrorBoundary({ error, reset }: ErrorBoundaryProps) {
+    return (
+        <StatusScreen
+            variant="error"
+            title="Something went wrong"
+            message={error.message || "An unexpected error occurred."}
+            actionLabel="Try again"
+            onAction={reset}
+        />
+    );
 }

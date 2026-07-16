@@ -2,21 +2,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-// ✅ FIX 1: Explicitly add all nested signup paths to the public whitelist
+// ✅ Expanded public paths
 const PUBLIC_PATHS = [
+    "/",
+    "/about",
+    "/pricing",
     "/login",
     "/signup",
     "/signup/owner",
     "/signup/jfda",
     "/signup/auditor",
     "/forgot-password",
-    "/"
+    // add any other public pages here
 ];
 
 // Onboarding paths (accessible to authenticated users without a slug)
 const ONBOARDING_PATHS = ["/onboarding", "/denier"];
 
-// Renamed from 'middleware' to 'proxy' for Next.js 16
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
     const hostname = request.headers.get("host") || "";
@@ -87,25 +89,22 @@ export async function proxy(request: NextRequest) {
     if (session && !isOwner) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_NON_OWNER");
 
-        // Define paths allowed for non-owners based on their role
         const isJfda = session.user.role === "jfda_officer";
         const isAuditor = session.user.role === "nutritionist_auditor";
         const isAdmin = session.user.role === "platform_admin";
 
         const allowedPaths = [
-            "/dashboard", // Common main dashboard
+            "/dashboard",
             isJfda ? "/jfda/dashboard" : "",
             isAuditor ? "/auditor/dashboard" : "",
             isAdmin ? "/admin/dashboard" : "",
         ].filter(Boolean);
 
-        // Allow access if they are on the main domain AND hitting an allowed path
         if (!subdomain && allowedPaths.includes(pathname)) {
             console.log(`✅ [Proxy] Allow non-owner access to: ${pathname}`);
             return NextResponse.next();
         }
 
-        // Redirect anyone else or anyone trying to hit a subdomain back to main
         if (subdomain || !allowedPaths.includes(pathname)) {
             console.log(`🔄 [Proxy] Redirecting non-owner to main domain`);
             return NextResponse.redirect(new URL(`http://${baseUrl}/dashboard`));
@@ -127,9 +126,15 @@ export async function proxy(request: NextRequest) {
     if (session && isOwner && session.user.slug && !subdomain) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_MAIN_DOMAIN");
 
-        // ✅ FIX 2: Use startsWith("/signup") to catch nested routes
+        // ✅ Allow public paths to stay on main domain
+        if (PUBLIC_PATHS.includes(pathname)) {
+            console.log(`✅ [Proxy] Allow public path on main domain: ${pathname}`);
+            return NextResponse.next();
+        }
+
+        // For protected paths (like /dashboard), redirect to subdomain
         let targetPath = pathname;
-        if (pathname === "/" || pathname === "/login" || pathname.startsWith("/signup") || pathname === "/dashboard") {
+        if (pathname === "/dashboard") {
             targetPath = "/owner/dashboard";
         }
 
@@ -142,9 +147,15 @@ export async function proxy(request: NextRequest) {
     if (session && isOwner && session.user.slug && subdomain === session.user.slug) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_CORRECT_SUBDOMAIN");
 
-        // ✅ FIX 3: Use startsWith("/signup") to prevent logged-in users from seeing the signup page
-        if (pathname === "/" || pathname === "/login" || pathname.startsWith("/signup") || pathname === "/dashboard") {
-            console.log(`🔄 [Proxy] Redirecting from ${pathname} to /owner/dashboard`);
+        // ✅ Allow public paths on subdomain too (if they want)
+        if (PUBLIC_PATHS.includes(pathname)) {
+            console.log(`✅ [Proxy] Allow public path on subdomain: ${pathname}`);
+            return NextResponse.next();
+        }
+
+        // Redirect /dashboard to /owner/dashboard
+        if (pathname === "/dashboard") {
+            console.log(`🔄 [Proxy] Redirecting ${pathname} to /owner/dashboard`);
             return NextResponse.redirect(new URL(`http://${subdomain}.${baseUrl}/owner/dashboard`));
         }
 
@@ -170,6 +181,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
-        "/((?!api|_next/static|_next/image|favicon.ico|locales).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|locales|logos|acct-logo-horizontal.png).*)",
     ],
 };

@@ -1,20 +1,35 @@
 // src/app/layout.tsx
 import React from "react";
 import AuthProvider from "@/lib/utils/AuthProvider";
-import { Outfit, DM_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
 import { I18nProvider } from "next-i18next/client";
 import "@/app/global.css";
 
-const headingFont = Outfit({
-    subsets: ["latin"],
-    variable: "--font-heading",
-});
+// ─── Metadata for favicon ──────────────────────────────
+export const metadata = {
+    icons: {
+        icon: "/favicon.ico",
+    },
+};
 
-const bodyFont = DM_Sans({
-    subsets: ["latin"],
-    variable: "--font-sans",
+// ─── Configure Century Gothic local font ──────────────
+const centuryGothic = localFont({
+    src: [
+        {
+            path: "../font/CenturyGothicPaneuropeanRegular.ttf",
+            weight: "400",
+            style: "normal",
+        },
+        {
+            path: "../font/CenturyGothicPaneuropeanBold.ttf",
+            weight: "700",
+            style: "normal",
+        },
+    ],
+    variable: "--font-century",
+    display: "swap",
 });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,11 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html
             lang="en"
             suppressHydrationWarning
-            className={cn(
-                "min-h-screen",
-                bodyFont.variable,
-                headingFont.variable
-            )}
+            className={cn(centuryGothic.variable, "min-h-screen")}
+            style={{
+                "--font-sans": "var(--font-century)",
+                "--font-heading": "var(--font-century)",
+            } as React.CSSProperties}
         >
         <body
             suppressHydrationWarning

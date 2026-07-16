@@ -11,6 +11,7 @@ enum Role {
   restaurant_owner
   nutritionist_auditor
   jfda_officer
+  null
 }
 
 enum CertStatus {
@@ -57,6 +58,7 @@ model User {
   role          Role
   created_at    DateTime    @default(now())
   is_active     Boolean     @default(true)
+
   restaurant    Restaurant?
 
   auditLogs     AuditLog[]

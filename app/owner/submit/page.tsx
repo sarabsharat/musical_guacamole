@@ -7,25 +7,31 @@ export default async function SubmitRecipePage() {
     // 1. 🚨 SECURITY: The un-hackable Auth Wall
     const { userId, restaurantId } = await requireOwnerAuth();
 
-    // 2. Reconstruct the mock objects to satisfy your existing Client Component's props
+    // 2. Reconstruct the mock objects
     const mockUser = { id: userId, restaurantId, role: "restaurant_owner" } as any;
     const mockTenant = { id: restaurantId } as any;
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
+        <main className="min-h-screen bg-background p-6 md:p-8">
             <div className="max-w-4xl mx-auto space-y-6">
-                <div className="pb-4 border-b border-border">
-                    <h1 className="text-3xl font-bold tracking-tight">Ingest Raw Recipe Notes</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Submit unstructured text or an image of a recipe to have the AI parse and draft it into the system.
-                    </p>
-                </div>
 
-                <SubmitRecipeForm
-                    currentUser={mockUser}
-                    tenant={mockTenant}
-                />
+                {/* Header upgraded to match the SaaS look */}
+                <header className="pb-6 border-b border-border">
+                    <h1 className="text-3xl font-black tracking-tight uppercase text-primary">
+                        Ingest Raw Recipe
+                    </h1>
+                    <p className="text-muted-foreground mt-2">
+                        Submit unstructured text or an image. The AI will parse it and place it in your Drafts Queue.
+                    </p>
+                </header>
+
+                <div className="bg-card border border-border rounded-xl p-6 shadow-xl">
+                    <SubmitRecipeForm
+                        currentUser={mockUser}
+                        tenant={mockTenant}
+                    />
+                </div>
             </div>
-        </div>
+        </main>
     );
 }

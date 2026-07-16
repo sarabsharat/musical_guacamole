@@ -1,13 +1,14 @@
-// lib/auth.ts - Phase 2: Complete Auth.js v5 with Credentials Provider
+// lib/auth.ts - Phase 2: Complete Auth.js v5 with Credentials + Google
 import NextAuth, { type DefaultSession, type User } from "next-auth";
-import { type JWT } from "next-auth/jwt"; // FIX 1: Import JWT to allow augmentation
+import { type JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
 // ═══════════════════════════════════════════════════════════════
-// 1. EXTEND TYPES - Add custom fields to Session, User, and JWT
+// 1. EXTEND TYPES (unchanged)
 // ═══════════════════════════════════════════════════════════════
 
 declare module "next-auth" {
@@ -20,13 +21,12 @@ declare module "next-auth" {
             is_active: boolean | null;
         } & DefaultSession["user"];
     }
-
-    // FIX 3: Extend the User object so we don't need 'any' later
     interface User {
         role: Role | null;
         restaurantId: number | null;
         slug: string | null;
         is_active: boolean | null;
+        isNewUser: boolean ;
     }
 }
 
@@ -46,6 +46,7 @@ declare module "next-auth/jwt" {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     providers: [
+        // ─── Email/Password Provider ──────────────────────────────
         CredentialsProvider({
             name: "Credentials",
             credentials: {
@@ -53,110 +54,118 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) {
-                    console.log("❌ [Auth] Missing email or password");
-                    return null;
-                }
+                if (!credentials?.email || !credentials?.password) return null;
+                const user = await prisma.user.findUnique({
+                    where: { email: credentials.email as string },
+                    include: { restaurant: true },
+                });
+                if (!user || !user.password_hash) return null;
+                const passwordMatch = await bcrypt.compare(
+                    credentials.password as string,
+                    user.password_hash
+                );
+                if (!passwordMatch) return null;
+                return {
+                    id: String(user.id),
+                    email: user.email,
+                    name: user.full_name,
+                    role: user.role,
+                    restaurantId: user.restaurant?.id || null,
+                    slug: user.restaurant?.slug || null,
+                    is_active: user.is_active,
+                    isNewUser: false,
+                };
+            },
+        }),
 
-                try {
-                    const user = await prisma.user.findUnique({
-                        where: { email: credentials.email as string },
+        // ─── Google OAuth Provider ──────────────────────────────────
+        GoogleProvider({
+            clientId: process.env.CLIENT_ID || "",
+            clientSecret: process.env.CLIENT_SECRET || "",
+            allowDangerousEmailAccountLinking: true,
+            authorization: {
+                params: {
+                    prompt: "consent",
+                    access_type: "offline",
+                    response_type: "code",
+                },
+            },
+            async profile(profile) {
+                const email = profile.email;
+                if (!email) throw new Error("No email provided by Google");
+
+                let user = await prisma.user.findUnique({
+                    where: { email },
+                    include: { restaurant: true },
+                });
+
+                let isNewUser = false; // <-- Initialize the flag
+
+                // ✅ NEW USER: create with default role = restaurant_owner
+                if (!user) {
+                    console.log("🆕 [Google] Creating new user from Google:", email);
+                    isNewUser = true; // <-- Flag them as new
+                    user = await prisma.user.create({
+                        data: {
+                            email,
+                            full_name: profile.name || "Google User",
+                            role: Role.null,
+                            is_active: true,
+                            image: profile.picture,
+                        },
                         include: { restaurant: true },
                     });
-
-                    if (!user) {
-                        console.log("❌ [Auth] User not found:", credentials.email);
-                        return null;
-                    }
-
-                    if (!user.is_active) {
-                        console.log("❌ [Auth] User is inactive:", credentials.email);
-                        return null;
-                    }
-
-                    // FIX 2: Check if password exists before using bcrypt (Handles OAuth users)
-                    if (!user.password_hash) {
-                        console.log("❌ [Auth] User has no password (OAuth user):", credentials.email);
-                        return null;
-                    }
-
-                    const passwordMatch = await bcrypt.compare(
-                        credentials.password as string,
-                        user.password_hash
-                    );
-
-                    if (!passwordMatch) {
-                        console.log("❌ [Auth] Invalid password for:", credentials.email);
-                        return null;
-                    }
-
-                    console.log("✅ [Auth] User authenticated:", credentials.email);
-
-                    return {
-                        id: String(user.id),
-                        email: user.email,
-                        name: user.full_name,
-                        role: user.role,
-                        restaurantId: user.restaurant?.id || null,
-                        slug: user.restaurant?.slug || null,
-                        is_active: user.is_active,
-                    };
-                } catch (error) {
-                    console.error("❌ [Auth] Error in authorize:", error);
-                    return null;
                 }
+
+                return {
+                    id: String(user.id),
+                    email: user.email,
+                    name: user.full_name,
+                    role: user.role,
+                    restaurantId: user.restaurant?.id || null,
+                    slug: user.restaurant?.slug || null,
+                    is_active: user.is_active,
+                    image: user.image || profile.picture,
+                    isNewUser, // <-- Pass the flag down to the callbacks
+                };
             },
         }),
     ],
+
     pages: {
         signIn: "/login",
         newUser: "/signup",
         error: "/error",
     },
-    callbacks: {
-        async jwt({ token, user, trigger, session }) {
-            if (user) {
-                console.log("🔐 [JWT] Populating token from user:", user.email);
-                token.id = user.id as string;
 
-                // FIX 3: No 'any' needed here because we extended the User interface
+    callbacks: {
+        // ─── JWT Callback ──────────────────────────────────────────
+        async jwt({ token, user, trigger, session }) {
+            // 1. Initial sign-in (runs ONLY once when logging in)
+            if (user) {
+                token.id = user.id as string;
                 token.role = user.role;
                 token.restaurantId = user.restaurantId;
                 token.slug = user.slug;
                 token.is_active = user.is_active;
             }
 
+            // 2. Client-side updates (e.g., when they finish onboarding)
             if (trigger === "update" && session) {
-                console.log("🔄 [JWT] Updating token from session update");
                 token.role = session.user?.role;
                 token.restaurantId = session.user?.restaurantId;
                 token.slug = session.user?.slug;
             }
 
-            if (token.id && !user) {
-                try {
-                    const dbUser = await prisma.user.findUnique({
-                        where: { id: parseInt(token.id, 10) },
-                        include: { restaurant: true },
-                    });
-
-                    if (dbUser) {
-                        token.role = dbUser.role;
-                        token.restaurantId = dbUser.restaurant?.id || null;
-                        token.slug = dbUser.restaurant?.slug || null;
-                        token.is_active = dbUser.is_active;
-                    }
-                } catch (error) {
-                    console.error("❌ [JWT] Error refreshing token:", error);
-                }
-            }
+            // 🚨 WE DELETED THE PRISMA CALL FROM HERE 🚨
 
             return token;
         },
+
+        // ─── Session Callback ──────────────────────────────────────
         async session({ session, token }) {
             if (session.user && token) {
-                console.log("📋 [Session] Building session for:", session.user.email);
-                session.user.id = token.id;
+                session.user.id = token.id as string;
                 session.user.role = token.role;
                 session.user.restaurantId = token.restaurantId;
                 session.user.slug = token.slug;
@@ -164,29 +173,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
             return session;
         },
+
+        // ─── SignIn Callback – handle post‑sign‑in redirects ──────
+        async signIn({ user, account }) {
+            // Let Auth.js do its job and actually save the session cookie.
+            // All routing will be handled by the Next.js page they land on.
+            return true;
+        },
     },
+
     session: {
         strategy: "jwt",
         maxAge: 30 * 24 * 60 * 60,
         updateAge: 24 * 60 * 60,
     },
-    cookies: {
-        sessionToken: {
-            name: process.env.NODE_ENV === "production"
-                ? "__Secure-authjs.session-token"
-                : "authjs.session-token",
-            options: {
-                httpOnly: true,
-                sameSite: "lax",
-                path: "/",
-                secure: process.env.NODE_ENV === "production",
-                domain:
-                    process.env.NODE_ENV === "production"
-                        ? ".musical-guacamole.jo"
-                        : undefined,
-            },
-        },
-    },
+
+    // cookies: {
+    //     sessionToken: {
+    //         name: process.env.NODE_ENV === "production"
+    //             ? "__Secure-authjs.session-token"
+    //             : "authjs.session-token",
+    //         options: {
+    //             httpOnly: true,
+    //             sameSite: "lax",
+    //             path: "/",
+    //             secure: process.env.NODE_ENV === "production",
+    //             domain:
+    //                 process.env.NODE_ENV === "production"
+    //                     ? ".musical-guacamole.jo"
+    //                     : undefined,
+    //         },
+    //     },
+    // },
+
     secret: process.env.AUTH_SECRET || "fallback-secret-change-in-production",
     trustHost: true,
     debug: process.env.NODE_ENV === "development",
@@ -198,11 +217,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 export async function getServerSession() {
     const session = await auth();
-
-    if (!session?.user) {
-        return null;
-    }
-
+    if (!session?.user) return null;
     return {
         id: session.user.id,
         email: session.user.email || "",
