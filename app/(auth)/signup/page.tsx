@@ -85,7 +85,7 @@ export default function SignupHubPage() {
             await setGoogleUserRole(role);
             // Update the NextAuth cookie on the client so the onboarding form grants access
             await update({ user: { ...session.user, role } });
-            router.push(redirectPath);
+            window.location.href = redirectPath;
         }
         // 2️⃣ IF NOT LOGGED IN (Normal User): Send to the email/password form
         else {

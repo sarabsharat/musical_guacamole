@@ -13,7 +13,6 @@ const PUBLIC_PATHS = [
     "/signup/jfda",
     "/signup/auditor",
     "/forgot-password",
-    // add any other public pages here
 ];
 
 // Onboarding paths (accessible to authenticated users without a slug)
@@ -53,6 +52,19 @@ export async function proxy(request: NextRequest) {
     console.log(`   pathname: ${pathname}`);
 
     // ═══════════════════════════════════════════════════════════════
+    // 1.5 SUBDOMAIN LOGIN TRAPDOOR
+    // ═══════════════════════════════════════════════════════════════
+    // WHY THIS EXISTS: Google OAuth strictly forbids wildcard callback URLs.
+    // We cannot send users to google from `slug.domain.com/login` because Google
+    // will only redirect back to `domain.com`.
+    // This trapdoor catches users trying to log in on a subdomain and safely
+    // boots them back to the root domain so the Google PKCE cookie flow doesn't crash.
+    if (pathname === "/login" && subdomain) {
+        console.log(`🔄 [Proxy] Booting subdomain login back to main domain`);
+        return NextResponse.redirect(new URL(`http://${baseUrl}/login`));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // 2. SESSION RETRIEVAL
     // ═══════════════════════════════════════════════════════════════
 
@@ -83,6 +95,16 @@ export async function proxy(request: NextRequest) {
         const loginUrl = new URL(`http://${baseUrl}/login`);
         loginUrl.searchParams.set("callbackUrl", pathname);
         return NextResponse.redirect(loginUrl);
+    }
+
+    // Case 1B: AUTHENTICATED BUT NO ROLE (New Google User)
+    if (session && !session.user?.role) {
+        console.log("📍 [Proxy] Route: AUTHENTICATED_NO_ROLE");
+        if (pathname === "/signup") {
+            return NextResponse.next();
+        }
+        console.log(`🚫 [Proxy] Redirecting new Google user to role selection hub`);
+        return NextResponse.redirect(new URL(`http://${baseUrl}/signup`));
     }
 
     // Case 2: AUTHENTICATED NON-OWNER (JFDA, Admin, Auditor)
@@ -123,22 +145,23 @@ export async function proxy(request: NextRequest) {
     }
 
     // Case 4: AUTHENTICATED OWNER - Has slug, on main domain
+    // We explicitly check if !subdomain to ensure we only redirect from root
     if (session && isOwner && session.user.slug && !subdomain) {
-        console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_MAIN_DOMAIN");
 
-        // ✅ Allow public paths to stay on main domain
-        if (PUBLIC_PATHS.includes(pathname)) {
-            console.log(`✅ [Proxy] Allow public path on main domain: ${pathname}`);
+        // 🚨 ADD THIS: Prevent redirect if we are already aiming for the correct subdomain
+        if (hostname.startsWith(`${session.user.slug}.`)) {
             return NextResponse.next();
         }
 
-        // For protected paths (like /dashboard), redirect to subdomain
-        let targetPath = pathname;
-        if (pathname === "/dashboard") {
-            targetPath = "/owner/dashboard";
+        console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_MAIN_DOMAIN");
+
+        if (PUBLIC_PATHS.includes(pathname)) {
+            return NextResponse.next();
         }
 
+        let targetPath = pathname === "/dashboard" ? "/owner/dashboard" : pathname;
         const subdomainUrl = `http://${session.user.slug}.${baseUrl}${targetPath}`;
+
         console.log(`🔄 [Proxy] Redirect to subdomain: ${subdomainUrl}`);
         return NextResponse.redirect(subdomainUrl);
     }
@@ -181,6 +204,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
-        "/((?!api|_next/static|_next/image|favicon.ico|locales|logos|acct-logo-horizontal.png).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|locales|logos|acct-logo-horizontal.png|.well-known).*)",
     ],
 };

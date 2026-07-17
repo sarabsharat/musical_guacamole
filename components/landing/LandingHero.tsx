@@ -50,7 +50,7 @@ export function LandingHero() {
                     </p>
 
                     <div className="flex flex-wrap items-center gap-4 pt-6">
-                        <Link href="/login">
+                        <Link href="/dashboard">
                             <Button size="lg" className="px-8 sm:px-10 rounded-full h-12 sm:h-14 text-base sm:text-lg font-semibold">
                                 Get Started
                             </Button>

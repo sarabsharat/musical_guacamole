@@ -6,7 +6,19 @@ import { serializePrisma } from "@/lib/serialize";
 
 export default async function DashboardPage() {
     // 🚨 SECURITY: The un-hackable Auth Wall
-    const { restaurantId } = await requireOwnerAuth();
+    const { restaurantId,slug } = await requireOwnerAuth();
+    console.log("DEBUG: Dashboard Loading for:", { restaurantId, slug });
+
+    // Ensure your query matches the DB schema:
+    const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId }, // or where: { slug: slug }
+    });
+
+    if (!restaurant) {
+        console.error("CRITICAL: Restaurant not found in DB with ID:", restaurantId);
+        // This is likely why you get a 404
+        return <div>Restaurant data not found.</div>;
+    }
 
     const [
         totalRecipes,

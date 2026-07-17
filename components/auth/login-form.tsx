@@ -128,7 +128,7 @@ export function LoginForm() {
                         type="button"
                         variant="outline"
                         className="w-full border-primary text-primary hover:bg-primary/10"
-                        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                        onClick={() => signIn("google", { callbackUrl: "/" })}
                         disabled={isLoading}
                     >
                         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
