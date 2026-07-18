@@ -20,13 +20,14 @@ export default async function DashboardPage() {
         return <div>Restaurant data not found.</div>;
     }
 
+
     const [
         totalRecipes,
         pendingCount,
         approvedCount,
         rejectedCount,
         revokedCount,
-        activeDraftsCount, // NEW: Track drafts waiting for resolution
+        activeDraftsCount,
         recentRecipes,
     ] = await Promise.all([
         prisma.recipe.count({ where: { restaurant_id: restaurantId } }),

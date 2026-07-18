@@ -12,14 +12,18 @@ export function LogoutButton() {
     const handleLogout = async () => {
         setIsLoggingOut(true);
 
-        // 1. Destroy the session securely
-        await signOut({ redirect: false });
-
-        // Use 'replace' instead of 'href' or 'router.push'.
-        // This overwrites the current page in the browser's history.
-        // If they click the back button, they won't go to the dashboard,
-        // they will go to whatever page they were on BEFORE the dashboard.
-        window.location.replace("/login");
+        try {
+            // Force the logout to happen at the root domain so it can actually find and kill the cookie
+            // Change 'dev-tenant.myapp.test' to your root domain:
+            await signOut({
+                callbackUrl: "http://myapp.test:3000/login",
+                redirect: true // Let NextAuth handle the redirect to the main domain
+            });
+        } catch (error) {
+            console.error("Logout failed", error);
+            // Fallback: clear the path manually
+            window.location.replace("http://myapp.test:3000/login");
+        }
     };
 
     return (

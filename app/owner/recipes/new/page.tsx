@@ -1,64 +1,42 @@
-// src/app/owner/recipes/new/page.tsx
-import React from "react";
+import { RecipeCreateForm } from "@/components/owner/recipe-create-form";
 import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
-import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
-import { RecipeBuilderForm } from "@/components/owner/recipe-builder";
+import prisma from "@/lib/prisma";
 
-interface PageProps {
-    searchParams: Promise<{ fromDraftId?: string }>;
-}
+export default async function NewRecipePage() {
+    // 1. 🚨 SECURITY: Auth Wall
+    const { userId, restaurantId } = await requireOwnerAuth();
 
-export default async function NewRecipePage({ searchParams }: PageProps) {
-    const { restaurantId } = await requireOwnerAuth();
-    const { fromDraftId } = await searchParams;
-
-    let prefilledIngredients: any[] = [];
-    let chefNotes = "";
-
-    // 1. Fetch Global JFDA Ingredients (Needed for manual additions)
+    // 2. Fetch ingredient library
     const references = await prisma.ingredientReference.findMany({
-        orderBy: { name: "asc" }
+        orderBy: { name: "asc" },
     });
+
+    // 3. Serialize for client component
     const serializedReferences = serializePrisma(references);
 
-    // 2. AI Catcher: If coming from a Draft, intercept and pre-fill
-    if (fromDraftId) {
-        const draftId = parseInt(fromDraftId, 10);
-        if (!isNaN(draftId)) {
-            const draft = await prisma.recipeDraft.findFirst({
-                where: { id: draftId, restaurant_id: restaurantId }
-                // include: { resolved_items: true } // Uncomment when your schema relations are set
-            });
-
-            if (draft) {
-                chefNotes = draft.raw_input_text;
-                // prefilledIngredients = draft.resolved_items;
-            }
-        }
-    }
+    // 4. Mock user for client component
+    const mockUser = { id: userId, restaurantId, role: "restaurant_owner" } as any;
 
     return (
-        <main className="min-h-screen bg-background p-6 md:p-8">
-            <div className="max-w-5xl mx-auto space-y-6">
-
-                <header className="pb-6 border-b border-border">
-                    <h1 className="text-3xl font-black tracking-tight uppercase text-foreground">
-                        {fromDraftId ? "Finalize AI Recipe" : "Create Manual Recipe"}
+        <div className="min-h-screen bg-background p-4 md:p-8">
+            <div className="mx-auto max-w-4xl space-y-6">
+                {/* Page Header */}
+                <div className="border-b border-border pb-4">
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                        Create Manual Recipe
                     </h1>
-                    <p className="text-muted-foreground mt-2">
-                        {fromDraftId
-                            ? "Review the AI formulation, configure yield, and finalize."
-                            : "Build a new formulation from scratch using the standardized database."}
+                    <p className="mt-1 text-muted-foreground">
+                        Build a new menu item from scratch using the standardized ingredient database.
                     </p>
-                </header>
+                </div>
 
-                <RecipeBuilderForm
-                    initialIngredients={prefilledIngredients}
-                    initialNotes={chefNotes}
-                    references={serializedReferences} // Pass refs so they can manually add ingredients
+                {/* Recipe Form */}
+                <RecipeCreateForm
+                    currentUser={mockUser}
+                    references={serializedReferences}
                 />
             </div>
-        </main>
+        </div>
     );
 }

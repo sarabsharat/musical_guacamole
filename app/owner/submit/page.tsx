@@ -12,20 +12,20 @@ export default async function SubmitRecipePage() {
     const mockTenant = { id: restaurantId } as any;
 
     return (
-        <main className="min-h-screen bg-background p-6 md:p-8">
+        <main className="p-6 md:p-8 space-y-6">
             <div className="max-w-4xl mx-auto space-y-6">
-
-                {/* Header upgraded to match the SaaS look */}
+                {/* Header */}
                 <header className="pb-6 border-b border-border">
-                    <h1 className="text-3xl font-black tracking-tight uppercase text-primary">
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">
                         Ingest Raw Recipe
                     </h1>
-                    <p className="text-muted-foreground mt-2">
+                    <p className="text-base text-muted-foreground mt-1">
                         Submit unstructured text or an image. The AI will parse it and place it in your Drafts Queue.
                     </p>
                 </header>
 
-                <div className="bg-card border border-border rounded-xl p-6 shadow-xl">
+                {/* Form Card */}
+                <div className="bg-card border border-border rounded-xl p-6 md:p-8 shadow-sm">
                     <SubmitRecipeForm
                         currentUser={mockUser}
                         tenant={mockTenant}

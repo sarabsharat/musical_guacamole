@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
 export function LoginForm() {
@@ -18,33 +19,53 @@ export function LoginForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log(" handleSubmit");
         setError("");
         setIsLoading(true);
 
         try {
+            console.log("🔐 [Login] Attempting to sign in with:", email);
+
             const result = await signIn("credentials", {
                 email,
                 password,
                 redirect: false,
             });
 
-            console.log("🔐 SignIn result:", result);
+            console.log("🔐 [Login] SignIn result:", result);
 
-            if (result?.error) {
+            // Case 1: result is null or undefined
+            if (!result) {
+                setError("No response from server. Please try again.");
+                console.error("❌ [Login] Result is null/undefined");
+                return;
+            }
+
+            // Case 2: result has an error field
+            if (result.error) {
                 let errorMsg = "Invalid email or password. Please try again.";
-                if (result.error !== "CredentialsSignin") {
+                if (result.error === "CredentialsSignin") {
+                    errorMsg = "Invalid email or password. Please try again.";
+                } else {
                     errorMsg = result.error;
                 }
+                console.log("❌ [Login] Error from NextAuth:", errorMsg);
                 setError(errorMsg);
                 return;
             }
 
-            if (result?.ok) {
+            // Case 3: result.ok is true (success)
+            if (result.ok) {
+                console.log("✅ [Login] Success, redirecting to /dashboard");
                 window.location.href = "/dashboard";
                 return;
             }
+
+            // Case 4: fallback – should not happen
+            setError("Login failed. Please check your credentials.");
+            console.warn("⚠️ [Login] Unexpected result state:", result);
         } catch (err) {
-            console.error("Login error:", err);
+            console.error("❌ [Login] Exception:", err);
             setError(err instanceof Error ? err.message : "Something went wrong");
         } finally {
             setIsLoading(false);
@@ -62,9 +83,13 @@ export function LoginForm() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                {/* 🔥 More visible error box – uses bg-red-100 and border-red-400 */}
                 {error && (
-                    <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-                        <p className="font-medium">{error}</p>
+                    <div className="rounded-lg border-2 border-red-400 bg-red-100 p-3 text-sm text-red-800 dark:border-red-600 dark:bg-red-900/30 dark:text-red-200">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-300" />
+                            <p className="font-medium">{error}</p>
+                        </div>
                     </div>
                 )}
 

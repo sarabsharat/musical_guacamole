@@ -1,11 +1,11 @@
 // src/app/auditor/layout.tsx
 import React from "react";
-import { getSession } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { Header } from "@/components/shared/Header";
 
 export default async function AuditorLayout({ children }: { children: React.ReactNode }) {
-    const session = await getSession();
-    const role = session?.role || null;
+    const session = await auth();
+    const role = session?.user?.role || null;
 
     return (
         <div className="flex min-h-screen flex-col bg-background font-sans antialiased">

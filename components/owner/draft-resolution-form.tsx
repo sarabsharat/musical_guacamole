@@ -25,6 +25,7 @@ interface DraftType {
 }
 
 interface DraftResolutionFormProps {
+
     draft: DraftType;
     references:  IngredientReference[];
 }
@@ -117,46 +118,63 @@ export function DraftResolutionForm({ draft, references }: DraftResolutionFormPr
         }
     };
 
+    // components/owner/draft-resolution-form.tsx – full updated JSX
+// (the rest of the component (state, handlers, imports) stays the same)
+
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-border pb-6">
+        <div className="space-y-8">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-6">
                 <div>
-                    <h1 className="text-2xl font-black uppercase tracking-tight text-primary">Review Draft #{draft.id}</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                        Review Draft #{draft.id}
+                    </h1>
+                    <p className="text-base text-muted-foreground mt-1">
+                        Match ingredients and finalize the recipe.
+                    </p>
                 </div>
 
                 <Button
                     onClick={handleRunAI}
                     disabled={aiLoading}
                     size="lg"
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground uppercase font-bold tracking-wider"
+                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-3 rounded-lg text-base font-semibold transition-all h-auto"
                 >
                     {aiLoading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles className="h-5 w-5" />
                     )}
                     Auto-Fill with AI
                 </Button>
             </div>
 
-            {/* 5. Escaped entities: "Chef's Notes" -> "Chef&apos;s Notes" */}
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                Chef&apos;s Notes
-            </p>
+            {/* Chef's Notes */}
+            <div>
+                <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Chef&apos;s Notes
+                </p>
+                <div className="rounded-xl border border-border bg-muted/20 p-4 text-base text-foreground/80">
+                    {draft.raw_input_text}
+                </div>
+            </div>
 
+            {/* AI Error Alert */}
             {aiError && (
-                <Alert className="border-destructive/50 bg-destructive/10 text-destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Extraction Error</AlertTitle>
-                    <AlertDescription>{aiError}</AlertDescription>
+                <Alert variant="destructive" className="border-destructive/50 bg-destructive/10 text-destructive">
+                    <AlertCircle className="h-5 w-5" />
+                    <AlertTitle className="text-base font-semibold">Extraction Error</AlertTitle>
+                    <AlertDescription className="text-sm">{aiError}</AlertDescription>
                 </Alert>
             )}
 
-            <div className="border border-primary/20 rounded-xl overflow-hidden shadow-2xl">
+            {/* Live Preview Card */}
+            <div className="rounded-xl border border-primary/20 bg-card shadow-sm overflow-hidden">
                 <LiveMacroPreviewCard preview={livePreview} />
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            {/* Ingredient Mapper */}
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
                 <IngredientMapperGrid
                     rows={rows}
                     references={references}
@@ -166,14 +184,15 @@ export function DraftResolutionForm({ draft, references }: DraftResolutionFormPr
                 />
             </div>
 
+            {/* Approve Button */}
             <Button
                 onClick={handleApprove}
                 disabled={loading}
                 size="lg"
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 uppercase font-black text-base tracking-widest py-8 shadow-lg"
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-bold uppercase tracking-wider py-4 shadow-md rounded-xl transition-all h-auto"
             >
                 {loading ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                 ) : (
                     "Approve Match & Create Recipe"
                 )}

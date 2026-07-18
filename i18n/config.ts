@@ -1,33 +1,8 @@
-import i18n from "i18next";
-import { initReactI18next } from "react-i18next";
-
-// Resources – you can load from JSON files or API
-const resources = {
-    en: {
-        translation: {
-            welcome: "Welcome",
-            login: "Login",
-            logout: "Logout",
-            // ...
-        },
+//i18n/config.ts
+module.exports = {
+    i18n: {
+        defaultLocale: 'en',
+        locales: ['en', 'ar'],
     },
-    ar: {
-        translation: {
-            welcome: "مرحباً",
-            login: "تسجيل الدخول",
-            logout: "تسجيل الخروج",
-            // ...
-        },
-    },
+    localePath: './public/locales',
 };
-
-i18n.use(initReactI18next).init({
-    resources,
-    lng: "en", // default language
-    fallbackLng: "en",
-    interpolation: {
-        escapeValue: false,
-    },
-});
-
-export default i18n;

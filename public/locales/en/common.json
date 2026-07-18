@@ -1,0 +1,18 @@
+{
+  "welcome": "Welcome",
+  "login": "Login",
+  "signup": "Sign up",
+  "logout": "Logout",
+  "home": "Home",
+  "dashboard": "Dashboard",
+  "overview": "Overview",
+  "manage_portfolio": "Manage your recipe portfolio and active ingestion drafts.",
+  "new_recipe": "New Recipe",
+  "actionable_drafts": "Actionable Drafts",
+  "total_recipes": "Total Recipes",
+  "pending_audit": "Pending Audit",
+  "approved": "Approved",
+  "flagged": "Flagged",
+  "recent_additions": "Recent Additions",
+  "view_audit_log": "View Audit Log"
+}

@@ -60,128 +60,152 @@
 }
 
 :root {
-    --ember: #5b3f7a;          /* warm indigo – primary */
-    --char: #1a1817;           /* warm dark */
-    --cream: #f8f6f3;          /* warm off-white */
-    --deep-sea: #3a2f3f;       /* dark muted for dark cards */
-    --wine: #c0392b;           /* deep red – destructive */
-    --mint: #e8a87c;           /* warm peach/coral – accent */
+    /* raw brand hexes, use anywhere via bg-ember, text-mint, etc */
+    --ember: #f15a24;
+    --char: #1a1a1a;
+    --cream: #feeee8;          /* ✅ updated light cream */
+    --deep-sea: #00363e;
+    --wine: #4b0923;
+    --mint: #14f1c6;
+    --ember-light: #ff7a45;
 
-    --background: #f8f6f3;
-    --foreground: #1a1817;
+    /* base */
+    --background: #feeee8;     /* ✅ updated to match */
+    --foreground: #1a1a1a;
     --card: #ffffff;
-    --card-foreground: #1a1817;
+    --card-foreground: #1a1a1a;
     --popover: #ffffff;
-    --popover-foreground: #1a1817;
+    --popover-foreground: #1a1a1a;
 
-    --primary: #5b3f7a;
-    --primary-foreground: #f8f6f3;
+    /* lang */
+    --font-century: 'Century Gothic', sans-serif;
+    --font-arabic: 'Noto Sans Arabic', sans-serif;
+    font-size: 20px;
 
-    --secondary: #8a6c9e;
-    --secondary-foreground: #f8f6f3;
+    /* primary = ember, main CTAs and brand moments */
+    --primary: #f15a24;
+    --primary-foreground: #feeee8;    /* ✅ updated */
 
-    --muted: #e8e0d8;
+    /* secondary = peachy orange, a lighter sibling of primary for secondary actions */
+    --secondary: #ff7a45;
+    --secondary-foreground: #5a2400;
+
+    --muted: #f5e6da;
     --muted-foreground: #5a4a3a;
 
-    --accent: #e8a87c;
-    --accent-foreground: #1a1817;
+    /* accent = mint, cool highlight and success-adjacent states */
+    --accent: #14f1c6;
+    --accent-foreground: #00363e;
 
-    --destructive: #c0392b;
-    --destructive-foreground: #f8f6f3;
+    /* destructive = wine, errors and delete actions */
+    --destructive: #4b0923;
+    --destructive-foreground: #feeee8;  /* ✅ updated */
 
-    --border: #d4ccc4;
-    --input: #d4ccc4;
-    --ring: #5b3f7a;
+    --border: #e6d5c8;
+    --input: #e6d5c8;
+    --ring: #f15a24;
     --radius: 0.875rem;
 
-    --sidebar: #f8f6f3;
-    --sidebar-foreground: #1a1817;
-    --sidebar-primary: #5b3f7a;
-    --sidebar-primary-foreground: #f8f6f3;
-    --sidebar-accent: #e8a87c;
-    --sidebar-accent-foreground: #1a1817;
-    --sidebar-border: #d4ccc4;
-    --sidebar-ring: #5b3f7a;
+    --sidebar: #feeee8;                /* ✅ updated */
+    --sidebar-foreground: #1a1a1a;
+    --sidebar-primary: #f15a24;
+    --sidebar-primary-foreground: #feeee8;  /* ✅ updated */
+    --sidebar-accent: #14f1c6;
+    --sidebar-accent-foreground: #00363e;
+    --sidebar-border: #e6d5c8;
+    --sidebar-ring: #f15a24;
 
-    --protein: #8a6c9e;
-    --carbs: #e8a87c;
-    --fats: #c0392b;
-
-    --chart-1: #5b3f7a;
-    --chart-2: #8a6c9e;
-    --chart-3: #e8a87c;
-    --chart-4: #c0392b;
-    --chart-5: #3a2f3f;
+    /* macros: protein = mint, carbs = gold, fats = wine */
+    --protein: #14f1c6;
+    --carbs: #ffc233;
+    --fats: #4b0923;
 }
 
 .dark {
-    --background: #141312;
-    --foreground: #f0ece6;
+    --ember: #f15a24;
+    --char: #fff3ea;
+    --cream: #00363e;
+    --deep-sea: #00363e;
+    --wine: #4b0923;
+    --mint: #14f1c6;
 
-    --card: #24211f;
-    --card-foreground: #f0ece6;
+    /* base — neutral dark background, Deep Sea kept for cards/accents only */
+    --background: #1a1a1a;
+    --foreground: #fff3ea;
 
-    --popover: #24211f;
-    --popover-foreground: #f0ece6;
+    --card: #242424;
+    --card-foreground: #fff3ea;
 
-    --primary: #7a5c9e;
-    --primary-foreground: #141312;
+    --popover: #242424;
+    --popover-foreground: #fff3ea;
 
-    --secondary: #a889b8;
-    --secondary-foreground: #141312;
+    --primary: #f15a24;
+    --primary-foreground: #1a1a1a;
 
-    --muted: #2e2a26;
+    --secondary: #ff7a45;
+    --secondary-foreground: #2e1200;
+
+    --muted: #2e2e2e;
     --muted-foreground: #a9a09a;
 
-    --accent: #f0c4a0;
-    --accent-foreground: #141312;
+    --accent: #14f1c6;
+    --accent-foreground: #00363e;
 
-    --destructive: #e74c3c;
-    --destructive-foreground: #141312;
+    --destructive: #e25c78;
+    --destructive-foreground: #1a1a1a;
 
-    --border: #3a3632;
-    --input: #3a3632;
-    --ring: #7a5c9e;
+    --border: #3a3a3a;
+    --input: #3a3a3a;
+    --ring: #f15a24;
 
-    --sidebar: #141312;
-    --sidebar-foreground: #f0ece6;
-    --sidebar-primary: #7a5c9e;
-    --sidebar-primary-foreground: #141312;
-    --sidebar-accent: #f0c4a0;
-    --sidebar-accent-foreground: #141312;
-    --sidebar-border: #3a3632;
-    --sidebar-ring: #7a5c9e;
+    --sidebar: #1a1a1a;
+    --sidebar-foreground: #fff3ea;
+    --sidebar-primary: #f15a24;
+    --sidebar-primary-foreground: #1a1a1a;
+    --sidebar-accent: #14f1c6;
+    --sidebar-accent-foreground: #00232a;
+    --sidebar-border: #3a3a3a;
+    --sidebar-ring: #f15a24;
 
-    --protein: #a889b8;
-    --carbs: #f0c4a0;
-    --fats: #e74c3c;
+    --protein: #14f1c6;
+    --carbs: #ffc233;
+    --fats: #e25c78;
 }
 
-/* ─── Scrollbar & selection ────────────────────────── */
+/* ─── Custom scrollbar ──────────────────────────────── */
 @layer utilities {
+    /* WebKit (Chrome, Edge, Safari) */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
     }
+
     ::-webkit-scrollbar-track {
         background: var(--muted);
         border-radius: 4px;
     }
+
     ::-webkit-scrollbar-thumb {
         background: var(--primary);
         border-radius: 4px;
     }
+
     ::-webkit-scrollbar-thumb:hover {
         background: var(--primary-foreground);
     }
+
+    /* Firefox */
     * {
         scrollbar-width: thin;
         scrollbar-color: var(--primary) var(--muted);
     }
+
+    /* ─── Text selection ──────────────────────────────── */
     ::selection {
         background: var(--primary);
         color: var(--primary-foreground);
     }
+
     ::-moz-selection {
         background: var(--primary);
         color: var(--primary-foreground);

@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -21,11 +20,11 @@ export function LanguageSwitcher() {
 
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger>
-                <Button variant="outline" size="icon">
-                    <Globe className="h-4 w-4" />
-                    <span className="sr-only">Switch language</span>
-                </Button>
+            <DropdownMenuTrigger
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-primary hover:text-secondary-foreground h-10 w-10"
+            >
+                <Globe className="h-4 w-4" />
+                <span className="sr-only">Switch language</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => changeLanguage("en")}>

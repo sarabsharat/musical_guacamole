@@ -1,3 +1,4 @@
+// app/owner/drafts/page.tsx
 import React from "react";
 import { prisma } from "@/lib/prisma";
 import { serializePrisma } from "@/lib/serialize";
@@ -5,17 +6,16 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import Link from "next/link";
 import { DraftStatus } from "@prisma/client";
 import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
+import { Plus } from "lucide-react";
 
-export const revalidate = 0; // Disable caching to fetch live background updates
+export const revalidate = 0;
 
 export default async function DraftsQueuePage() {
-    // 1. Authenticate & Secure the route using our new architecture
     const { restaurantId } = await requireOwnerAuth();
 
-    // Fetch with specific filtering to highlight "Needs Action" items
     const rawDrafts = await prisma.recipeDraft.findMany({
         where: { restaurant_id: restaurantId },
-        orderBy: [{ status: 'asc' }, { created_at: 'desc' }], // Group RESOLVED at the top
+        orderBy: [{ status: 'asc' }, { created_at: 'desc' }],
     });
     const drafts = serializePrisma(rawDrafts) as Array<{
         id: number;
@@ -27,38 +27,54 @@ export default async function DraftsQueuePage() {
     }>;
 
     return (
-        <div className="p-6 max-w-5xl mx-auto">
-            {/* Header with clear stats */}
-            <header className="flex justify-between items-end mb-8 border-b pb-4">
+        <div className="p-6 md:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6">
                 <div>
-                    <h1 className="text-2xl font-bold">Ingestion Queue</h1>
-                    <p className="text-muted-foreground">Manage your AI-parsed ingredient drafts.</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Ingestion Queue</h1>
+                    <p className="text-base text-muted-foreground mt-1">
+                        Manage your AI‑parsed ingredient drafts.
+                    </p>
                 </div>
-                <div className="flex gap-2">
-                    <Link href="/recipes/new" className="bg-primary text-primary-foreground px-4 py-2 rounded-md">New Ingestion</Link>
-                </div>
-            </header>
+                <Link
+                    href="/owner/submit"
+                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-3 rounded-lg text-base font-semibold transition-all"
+                >
+                    <Plus className="h-5 w-5" />
+                    New Ingestion
+                </Link>
+            </div>
 
-            {/* The Queue Grid */}
             <div className="grid gap-4">
                 {drafts.map((draft) => (
-                    <div key={draft.id} className={`p-4 rounded-lg border ${draft.status === 'RESOLVED' ? 'border-primary/50 bg-primary/5' : 'border-border'}`}>
-                        <div className="flex justify-between items-start mb-2">
+                    <div
+                        key={draft.id}
+                        className={`p-5 md:p-6 rounded-xl border ${
+                            draft.status === 'RESOLVED'
+                                ? 'border-primary/50 bg-primary/5'
+                                : 'border-border bg-card'
+                        } transition-colors hover:bg-muted/30`}
+                    >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <span className="font-mono text-sm">#{draft.id}</span>
+                                <span className="font-mono text-sm font-medium text-muted-foreground">
+                                    #{draft.id}
+                                </span>
                                 <StatusBadge status={draft.status} />
                             </div>
-                            <span className="text-xs text-muted-foreground">{new Date(draft.created_at).toLocaleDateString()}</span>
+                            <span className="text-sm text-muted-foreground">
+                                {new Date(draft.created_at).toLocaleDateString()}
+                            </span>
                         </div>
 
-                        <p className="text-sm italic my-2 truncate">"{draft.raw_input_text}"</p>
+                        <p className="text-base italic my-3 text-foreground/80 line-clamp-2">
+                            “{draft.raw_input_text}”
+                        </p>
 
-                        {/* Action Area */}
                         <div className="mt-4 flex items-center justify-end">
                             {draft.status === 'RESOLVED' ? (
                                 <Link
                                     href={`/owner/drafts/${draft.id}`}
-                                    className="text-primary font-semibold hover:underline"
+                                    className="text-primary font-semibold hover:underline text-base"
                                 >
                                     Review & Finalize →
                                 </Link>
@@ -68,12 +84,25 @@ export default async function DraftsQueuePage() {
                                     AI Parsing...
                                 </div>
                             ) : (
-                                <span className="text-xs text-muted-foreground uppercase tracking-wider">Locked</span>
+                                <span className="text-xs text-muted-foreground uppercase tracking-wider">
+                                    Locked
+                                </span>
                             )}
                         </div>
                     </div>
                 ))}
             </div>
+
+            {drafts.length === 0 && (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-12 text-center">
+                    <p className="text-base text-muted-foreground">No drafts yet.</p>
+                    <Link href="/owner/submit" className="mt-4">
+                        <span className="text-primary font-semibold hover:underline">
+                            Create your first ingestion →
+                        </span>
+                    </Link>
+                </div>
+            )}
         </div>
     );
 }
