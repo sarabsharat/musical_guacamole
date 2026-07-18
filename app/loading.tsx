@@ -1,3 +1,6 @@
+// app/loading.tsx
+import { LoadingScreen } from "@/components/ui/loading-screen";
+
 export default function Loading() {
-    return <div >Loading...</div>;
+    return <LoadingScreen message="Please wait..." />;
 }

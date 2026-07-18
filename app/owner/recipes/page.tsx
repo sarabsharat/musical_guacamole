@@ -1,44 +1,60 @@
-import {RecipeCreateForm} from "@/components/owner/recipe-create-form";
-import {requireOwnerAuth} from "@/lib/Authentication/RequireOwnerAuth";
-import {serializePrisma} from "@/lib/serialize";
-import prisma from "@/lib/prisma";
+// app/owner/recipes/page.tsx
+import { prisma } from "@/lib/prisma";
+import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
+import { RecipeFilters } from "@/components/owner/recipe-filters";
+import { serializePrisma } from "@/lib/serialize";
+import { RecipeStatus } from "@prisma/client";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import {RecipesList} from "@/components/owner/recipes-list";
 
-export default async function NewRecipePage() {
-    // 1. 🚨 SECURITY: The un-hackable Auth Wall
-    const { userId, restaurantId } = await requireOwnerAuth();
+interface PageProps {
+    searchParams: Promise<{ page?: string; search?: string; status?: string }>;
+}
 
-    // 2. Fetch reference ingredient library
-    // This pulls the global JFDA verified ingredients so the user can select them in the form
-    const references = await prisma.ingredientReference.findMany({
-        orderBy: { name: "asc" }
-    });
+export default async function RecipesPage({ searchParams }: PageProps) {
+    const { restaurantId } = await requireOwnerAuth();
+    const params = await searchParams;
+    const page = parseInt(params.page || "1", 10);
+    const pageSize = 10;
+    const skip = (page - 1) * pageSize;
+    const search = params.search || "";
+    const status = params.status as RecipeStatus | undefined;
 
-    // 3. Serialize the database objects to pass to the Client Component safely
-    const serializedReferences = serializePrisma(references);
+    const where: any = { restaurant_id: restaurantId };
+    if (search) where.meal_name = { contains: search, mode: "insensitive" };
+    if (status) where.status = status;
 
-    // 4. Reconstruct the mock user for your existing Client Component
-    const mockUser = { id: userId, restaurantId, role: "restaurant_owner" } as any;
+    const [recipes, totalCount] = await Promise.all([
+        prisma.recipe.findMany({ where, orderBy: { id: "desc" }, skip, take: pageSize }),
+        prisma.recipe.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
 
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
-            <div className="max-w-4xl mx-auto space-y-6">
-                <div className="pb-4 border-b">
-                    <h1 className="text-3xl font-bold tracking-tight">Create Manual Recipe</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Build a new menu item from scratch using the standardized ingredient database.
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">All Recipes</h1>
+                    <p className="text-base text-muted-foreground">
+                        {totalCount} recipe{totalCount !== 1 ? "s" : ""} found
                     </p>
                 </div>
-
-                {/*
-                  This assumes you have a manual creation form component.
-                  If your edit form handles both editing and creating, you can swap the import
-                  and pass empty recipe data here.
-                */}
-                <RecipeCreateForm
-                    currentUser={mockUser}
-                    references={serializedReferences}
-                />
+                <Link href="/owner/submit">
+                    <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-base px-6 py-3 h-auto">
+                        <Plus className="h-5 w-5" />
+                        New Recipe
+                    </Button>
+                </Link>
             </div>
+            <RecipeFilters currentStatus={status} currentSearch={search} />
+            <RecipesList
+                recipes={serializePrisma(recipes)}
+                currentPage={page}
+                totalPages={totalPages}
+            />
         </div>
     );
 }

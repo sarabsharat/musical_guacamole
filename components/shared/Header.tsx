@@ -1,18 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { useTranslation } from "react-i18next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Moon, Sun, Globe, Store } from "lucide-react";
+import { Moon, Sun, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/ui/logout-button";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { Role } from "@prisma/client";
 
 type Tenant = {
@@ -28,16 +23,11 @@ interface HeaderProps {
 }
 
 export function Header({ role, tenant, title }: HeaderProps) {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
     const { theme, setTheme } = useTheme();
-    const { i18n } = useTranslation();
-
     const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
-
-    const changeLanguage = (lng: string) => {
-        i18n.changeLanguage(lng);
-        document.documentElement.lang = lng;
-        document.documentElement.dir = lng === "ar" ? "rtl" : "ltr";
-    };
 
     const getDashboardPath = () => {
         if (role === Role.restaurant_owner) return "/owner/dashboard";
@@ -50,24 +40,30 @@ export function Header({ role, tenant, title }: HeaderProps) {
     let leftContent;
     if (role === Role.restaurant_owner && tenant) {
         leftContent = (
-            <Link href="/owner/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-                    <Store className="h-5 w-5" />
+            <Link
+                href="/owner/dashboard"
+                className="flex items-center gap-4 hover:opacity-80 transition-opacity"
+            >
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
+                    <Store className="h-6 w-6" />
                 </div>
                 <div className="flex flex-col">
-          <span className="text-sm font-semibold leading-none tracking-tight text-foreground">
-            {tenant.business_name}
-          </span>
-                    <span className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Tenant Portal
-          </span>
+                    <span className="text-lg font-semibold leading-tight tracking-tight text-foreground">
+                        {tenant.business_name}
+                    </span>
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
+                        Tenant Portal
+                    </span>
                 </div>
             </Link>
         );
     } else {
-        const label = title || role?.replace('_', ' ') || "JFDA";
+        const label = title || role?.replace("_", " ") || "JFDA";
         leftContent = (
-            <Link href={getDashboardPath()} className="font-bold text-lg capitalize hover:opacity-80 transition-opacity">
+            <Link
+                href={getDashboardPath()}
+                className="text-xl font-bold capitalize hover:opacity-80 transition-opacity"
+            >
                 {label}
             </Link>
         );
@@ -75,51 +71,58 @@ export function Header({ role, tenant, title }: HeaderProps) {
 
     const showBadges = role === Role.restaurant_owner && tenant;
 
+    if (!mounted) {
+        return (
+            <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur shadow-sm">
+                <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-8">
+                    <div className="flex items-center gap-3">{leftContent}</div>
+                    <div className="flex items-center gap-3 md:gap-4">
+                        <div className="h-11 w-11 animate-pulse rounded-md bg-muted" />
+                        <div className="h-11 w-11 animate-pulse rounded-md bg-muted" />
+                        <div className="h-11 w-11 animate-pulse rounded-md bg-muted" />
+                    </div>
+                </div>
+            </header>
+        );
+    }
+
     return (
-        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-8">
+        <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur shadow-sm">
+            <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-8">
                 <div className="flex items-center gap-3">{leftContent}</div>
 
-                <div className="flex items-center gap-2 md:gap-4">
+                <div className="flex items-center gap-3 md:gap-4">
                     {showBadges && (
-                        <div className="hidden md:flex items-center gap-2">
-                            <Badge variant="outline" className="font-semibold text-foreground/80">
+                        <div className="hidden md:flex items-center gap-3">
+                            <Badge
+                                variant="outline"
+                                className="border-border/50 bg-background/50 px-3 py-1.5 text-sm font-semibold text-foreground/80"
+                            >
                                 Level {tenant.cert_level.replace("LEVEL_", "")}
                             </Badge>
                             <Badge
                                 variant={tenant.cert_status === "ACTIVE" ? "default" : "secondary"}
-                                className="font-semibold uppercase tracking-wide"
+                                className="px-3 py-1.5 text-sm font-semibold uppercase tracking-wide"
                             >
                                 {tenant.cert_status}
                             </Badge>
-                            <div className="hidden md:block h-5 w-px bg-border" />
+                            <div className="hidden md:block h-6 w-px bg-border/50" />
                         </div>
                     )}
 
-                    {/* Language Switcher */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10">
-                            <Globe className="h-4 w-4" />
-                            <span className="sr-only">Switch language</span>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => changeLanguage("en")}>
-                                English
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => changeLanguage("ar")}>
-                                العربية
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <LanguageSwitcher />
 
-                    {/* Theme Toggle */}
-                    <Button variant="outline" size="icon" onClick={toggleTheme}>
-                        <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                        <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={toggleTheme}
+                        className="h-11 w-11 rounded-md border-border/50 bg-background/50 hover:bg-muted/50"
+                    >
+                        <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                         <span className="sr-only">Toggle theme</span>
                     </Button>
 
-                    {/* Logout */}
                     <LogoutButton />
                 </div>
             </div>

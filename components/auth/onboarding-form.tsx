@@ -17,7 +17,7 @@ import {DragDropUploader} from "@/components/owner/drag-drop-uploader";
 const DELIVERY_APPS = ["Careem", "Talabat","My Things", "Other"];
 
 export function OnboardingForm() {
-    const { data: session, status } = useSession();
+    const { data: session, status, update } = useSession();
     const [businessName, setBusinessName] = useState("");
     const [slug, setSlug] = useState("");
     const [addressLine, setAddressLine] = useState("");
@@ -65,10 +65,21 @@ export function OnboardingForm() {
             delivery_apps: selectedDeliveryApps,
         });
 
-        if (res.success) {
+        if (res.success && res.data) {
+            // 🚨 Force NextAuth to update the cookie with the new slug and ID
+            await update({
+                user: {
+                    ...session?.user,
+                    restaurantId: res.data.restaurantId,
+                    slug: res.data.slug,
+                }
+            });
+
+            // Now that the cookie has the slug, the proxy will correctly route you to:
+            // http://your-slug.localhost:3000/owner/dashboard
             window.location.href = "/dashboard";
         } else {
-            setError(res.message);
+            setError(res.message || "Something went wrong.");
             setIsLoading(false);
         }
     };

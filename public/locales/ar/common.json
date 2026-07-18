@@ -1,0 +1,18 @@
+{
+  "welcome": "مرحباً",
+  "login": "تسجيل الدخول",
+  "signup": "إنشاء حساب",
+  "logout": "تسجيل الخروج",
+  "home": "الرئيسية",
+  "dashboard": "لوحة التحكم",
+  "overview": "نظرة عامة",
+  "manage_portfolio": "إدارة محفظة وصفاتك ومسودات الإدخال النشطة.",
+  "new_recipe": "وصفة جديدة",
+  "actionable_drafts": "مسودات تتطلب إجراء",
+  "total_recipes": "إجمالي الوصفات",
+  "pending_audit": "في انتظار المراجعة",
+  "approved": "معتمد",
+  "flagged": "عليه ملاحظات",
+  "recent_additions": "الإضافات الأخيرة",
+  "view_audit_log": "عرض سجل المراجعة"
+}

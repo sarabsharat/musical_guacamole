@@ -2,33 +2,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-// ✅ FIX 1: Explicitly add all nested signup paths to the public whitelist
 const PUBLIC_PATHS = [
+    "/",
+    "/about",
+    "/pricing",
     "/login",
     "/signup",
     "/signup/owner",
     "/signup/jfda",
     "/signup/auditor",
     "/forgot-password",
-    "/"
 ];
 
-// Onboarding paths (accessible to authenticated users without a slug)
 const ONBOARDING_PATHS = ["/onboarding", "/denier"];
 
-// Renamed from 'middleware' to 'proxy' for Next.js 16
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
     const hostname = request.headers.get("host") || "";
 
-    // ═══════════════════════════════════════════════════════════════
-    // 1. HOST DETECTION
-    // ═══════════════════════════════════════════════════════════════
-
+    // ─── Host Detection ──────────────────────────────────────
     const parts = hostname.split(":");
     const hostWithoutPort = parts[0];
     const port = parts[1] || "";
-
     const hostParts = hostWithoutPort.split(".");
     let subdomain: string | null = null;
     let rootDomain = hostWithoutPort;
@@ -50,10 +45,13 @@ export async function proxy(request: NextRequest) {
     console.log(`   baseUrl: ${baseUrl}`);
     console.log(`   pathname: ${pathname}`);
 
-    // ═══════════════════════════════════════════════════════════════
-    // 2. SESSION RETRIEVAL
-    // ═══════════════════════════════════════════════════════════════
+    // ─── Subdomain Login Trapdoor ──────────────────────────
+    if (pathname === "/login" && subdomain) {
+        console.log(`🔄 [Proxy] Booting subdomain login back to main domain`);
+        return NextResponse.redirect(new URL(`http://${baseUrl}/login`));
+    }
 
+    // ─── Session ────────────────────────────────────────────
     const session = await auth();
     const isOwner = session?.user?.role === "restaurant_owner";
 
@@ -66,11 +64,38 @@ export async function proxy(request: NextRequest) {
         console.log(`   slug: ${session.user.slug || "null"}`);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 3. ROUTING LOGIC
-    // ═══════════════════════════════════════════════════════════════
+    // ─── Case 0: Authenticated but no role (new Google) ───
+    if (session && !session.user?.role) {
+        console.log("📍 [Proxy] Route: AUTHENTICATED_NO_ROLE");
+        if (pathname === "/signup") return NextResponse.next();
+        return NextResponse.redirect(new URL(`http://${baseUrl}/signup`));
+    }
 
-    // Case 1: NOT AUTHENTICATED
+    // ─── Case 0.5: Redirect authenticated users away from public pages ──
+    if (session) {
+        // Include /dashboard here so all authenticated users are caught
+        const publicRedirectPaths = ["/", "/login", "/signup", "/signup/owner", "/signup/jfda", "/signup/auditor", "/forgot-password", "/dashboard"];
+        if (publicRedirectPaths.includes(pathname)) {
+            const isOwner = session.user?.role === "restaurant_owner";
+            if (isOwner && session.user?.slug) {
+                const subdomainUrl = `http://${session.user.slug}.${baseUrl}/owner/dashboard`;
+                console.log(`🔄 [Proxy] Redirecting owner from ${pathname} to subdomain dashboard`);
+                return NextResponse.redirect(subdomainUrl);
+            } else if (isOwner && !session.user?.slug) {
+                console.log(`🔄 [Proxy] Redirecting owner (no slug) to onboarding`);
+                return NextResponse.redirect(new URL(`http://${baseUrl}/onboarding`));
+            } else if (!isOwner) {
+                let dashboardPath = "/dashboard";
+                if (session.user?.role === "jfda_officer") dashboardPath = "/jfda/dashboard";
+                else if (session.user?.role === "nutritionist_auditor") dashboardPath = "/auditor/dashboard";
+                else if (session.user?.role === "platform_admin") dashboardPath = "/admin/dashboard";
+                console.log(`🔄 [Proxy] Redirecting non-owner from ${pathname} to ${dashboardPath}`);
+                return NextResponse.redirect(new URL(`http://${baseUrl}${dashboardPath}`));
+            }
+        }
+    }
+
+    // ─── Case 1: NOT AUTHENTICATED ──────────────────────────
     if (!session) {
         console.log("📍 [Proxy] Route: NOT_AUTHENTICATED");
         if (PUBLIC_PATHS.includes(pathname)) {
@@ -83,36 +108,30 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Case 2: AUTHENTICATED NON-OWNER (JFDA, Admin, Auditor)
+    // ─── Case 2: AUTHENTICATED NON-OWNER ────────────────────
+    // This case now only allows access to the specific dashboard of that role.
+    // If the user hits any other path, they are redirected to their dashboard.
     if (session && !isOwner) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_NON_OWNER");
+        const role = session.user.role;
+        let allowedPaths: string[] = [];
+        if (role === "jfda_officer") allowedPaths = ["/jfda/dashboard"];
+        else if (role === "nutritionist_auditor") allowedPaths = ["/auditor/dashboard"];
+        else if (role === "platform_admin") allowedPaths = ["/admin/dashboard"];
+        else allowedPaths = ["/dashboard"]; // fallback
 
-        // Define paths allowed for non-owners based on their role
-        const isJfda = session.user.role === "jfda_officer";
-        const isAuditor = session.user.role === "nutritionist_auditor";
-        const isAdmin = session.user.role === "platform_admin";
-
-        const allowedPaths = [
-            "/dashboard", // Common main dashboard
-            isJfda ? "/jfda/dashboard" : "",
-            isAuditor ? "/auditor/dashboard" : "",
-            isAdmin ? "/admin/dashboard" : "",
-        ].filter(Boolean);
-
-        // Allow access if they are on the main domain AND hitting an allowed path
         if (!subdomain && allowedPaths.includes(pathname)) {
             console.log(`✅ [Proxy] Allow non-owner access to: ${pathname}`);
             return NextResponse.next();
         }
 
-        // Redirect anyone else or anyone trying to hit a subdomain back to main
-        if (subdomain || !allowedPaths.includes(pathname)) {
-            console.log(`🔄 [Proxy] Redirecting non-owner to main domain`);
-            return NextResponse.redirect(new URL(`http://${baseUrl}/dashboard`));
-        }
+        // Redirect to their role dashboard
+        const targetPath = allowedPaths[0] || "/dashboard";
+        console.log(`🔄 [Proxy] Redirecting non-owner to ${targetPath}`);
+        return NextResponse.redirect(new URL(`http://${baseUrl}${targetPath}`));
     }
 
-    // Case 3: AUTHENTICATED OWNER - No slug yet (incomplete onboarding)
+    // ─── Case 3: AUTHENTICATED OWNER – NO SLUG ──────────────
     if (session && isOwner && !session.user.slug) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_NO_SLUG");
         if (ONBOARDING_PATHS.includes(pathname) || PUBLIC_PATHS.includes(pathname)) {
@@ -123,36 +142,37 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL(`http://${baseUrl}/onboarding`));
     }
 
-    // Case 4: AUTHENTICATED OWNER - Has slug, on main domain
+    // ─── Case 4: AUTHENTICATED OWNER – MAIN DOMAIN ──────────
     if (session && isOwner && session.user.slug && !subdomain) {
-        console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_MAIN_DOMAIN");
-
-        // ✅ FIX 2: Use startsWith("/signup") to catch nested routes
-        let targetPath = pathname;
-        if (pathname === "/" || pathname === "/login" || pathname.startsWith("/signup") || pathname === "/dashboard") {
-            targetPath = "/owner/dashboard";
+        if (hostname.startsWith(`${session.user.slug}.`)) {
+            return NextResponse.next();
         }
-
+        console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_MAIN_DOMAIN");
+        if (PUBLIC_PATHS.includes(pathname)) {
+            return NextResponse.next();
+        }
+        let targetPath = pathname === "/dashboard" ? "/owner/dashboard" : pathname;
         const subdomainUrl = `http://${session.user.slug}.${baseUrl}${targetPath}`;
         console.log(`🔄 [Proxy] Redirect to subdomain: ${subdomainUrl}`);
         return NextResponse.redirect(subdomainUrl);
     }
 
-    // Case 5: AUTHENTICATED OWNER - Has slug, on correct subdomain
+    // ─── Case 5: AUTHENTICATED OWNER – CORRECT SUBDOMAIN ────
     if (session && isOwner && session.user.slug && subdomain === session.user.slug) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_CORRECT_SUBDOMAIN");
-
-        // ✅ FIX 3: Use startsWith("/signup") to prevent logged-in users from seeing the signup page
-        if (pathname === "/" || pathname === "/login" || pathname.startsWith("/signup") || pathname === "/dashboard") {
-            console.log(`🔄 [Proxy] Redirecting from ${pathname} to /owner/dashboard`);
+        if (PUBLIC_PATHS.includes(pathname)) {
+            console.log(`✅ [Proxy] Allow public path on subdomain: ${pathname}`);
+            return NextResponse.next();
+        }
+        if (pathname === "/dashboard") {
+            console.log(`🔄 [Proxy] Redirecting ${pathname} to /owner/dashboard`);
             return NextResponse.redirect(new URL(`http://${subdomain}.${baseUrl}/owner/dashboard`));
         }
-
         console.log(`✅ [Proxy] Allow access to restaurant dashboard`);
         return NextResponse.next();
     }
 
-    // Case 6: AUTHENTICATED OWNER - Has slug, on wrong subdomain
+    // ─── Case 6: AUTHENTICATED OWNER – WRONG SUBDOMAIN ──────
     if (session && isOwner && session.user.slug && subdomain && subdomain !== session.user.slug) {
         console.log("📍 [Proxy] Route: AUTHENTICATED_OWNER_WRONG_SUBDOMAIN");
         const correctUrl = `http://${session.user.slug}.${baseUrl}${pathname}`;
@@ -164,12 +184,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// MATCHER CONFIG
-// ═══════════════════════════════════════════════════════════════════
-
 export const config = {
     matcher: [
-        "/((?!api|_next/static|_next/image|favicon.ico|locales).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|locales|logos|acct-logo-horizontal.png|.well-known|_next/webpack-hmr).*)",
     ],
 };
