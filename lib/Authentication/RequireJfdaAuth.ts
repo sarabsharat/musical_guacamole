@@ -1,3 +1,4 @@
+// lib/Authentication/RequireJfdaAuth.ts
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth";
 
@@ -10,12 +11,14 @@ export async function requireJfdaAuth() {
     }
 
     // 2. Ensure user has the correct role
-    if (session.role !== "jfda_officer") {
+    // Note: Verify if your session object uses `session.role` or `session.user.role`
+    if (session.role !== "jfda_officer" && session.user?.role !== "jfda_officer") {
         redirect("/login?error=unauthorized");
     }
 
     // Return the safe, validated data
     return {
-        userId: session.id,
+        userId: session.id || session.user?.id,
+        user: session.user || session,
     };
 }

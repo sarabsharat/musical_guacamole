@@ -14,5 +14,13 @@
   "approved": "معتمد",
   "flagged": "عليه ملاحظات",
   "recent_additions": "الإضافات الأخيرة",
-  "view_audit_log": "عرض سجل المراجعة"
+  "view_audit_log": "عرض سجل المراجعة",
+  "sidebar": {
+    "dashboard": "لوحة التحكم",
+    "recipes": "الوصفات",
+    "drafts": "المسودات",
+    "newRecipe": "وصفة جديدة",
+    "settings": "الإعدادات",
+    "footer": "ريما وسارة"
+  }
 }

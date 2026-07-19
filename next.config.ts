@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 console.log("✅ Next.js config loaded!");
 
 const nextConfig: NextConfig = {
-    allowedDevOrigins: ["myapp.test", "*.myapp.test"],
+    allowedDevOrigins: ["myapp.test", "*.myapp.test","local.bsharat.me","*.local.bsharat.me"],
 
     images: {
         remotePatterns: [

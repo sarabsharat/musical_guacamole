@@ -37,6 +37,10 @@ declare module "next-auth/jwt" {
     }
 }
 
+const useSecureCookies = process.env.NODE_ENV === "production";
+const cookiePrefix = useSecureCookies ? "__Secure-" : "";
+const cookieDomain = useSecureCookies ? ".musical-guacamole.jo" : ".local.bsharat.me";
+
 // ─── Auth config ───────────────────────────────────────────────
 export const { handlers, signIn, signOut, auth } = NextAuth({
     providers: [
@@ -173,44 +177,42 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     cookies: {
         sessionToken: {
-            name: process.env.NODE_ENV === "production" ? "__Secure-authjs.session-token" : "authjs.session-token",
+            name: `${cookiePrefix}authjs.session-token`,
             options: {
                 httpOnly: true,
                 sameSite: "lax",
                 path: "/",
-                secure: process.env.NODE_ENV === "production",
-                // Set the domain to the root domain
-                domain: process.env.NODE_ENV === "production" ? ".musical-guacamole.jo" : ".myapp.test",
+                secure: useSecureCookies,
+                domain: cookieDomain,
             },
         },
         callbackUrl: {
-            name: process.env.NODE_ENV === "production" ? "__Secure-authjs.callback-url" : "authjs.callback-url",
+            name: `${cookiePrefix}authjs.callback-url`,
             options: {
                 sameSite: "lax",
                 path: "/",
-                secure: process.env.NODE_ENV === "production",
-                domain: process.env.NODE_ENV === "production" ? ".musical-guacamole.jo" : undefined,
+                secure: useSecureCookies,
+                domain: cookieDomain,
             },
         },
         csrfToken: {
-            name: process.env.NODE_ENV === "production" ? "__Secure-authjs.csrf-token" : "authjs.csrf-token",
+            // CSRF uses __Host- in production, which CANNOT have a domain attribute
+            name: useSecureCookies ? `__Host-authjs.csrf-token` : `authjs.csrf-token`,
             options: {
                 httpOnly: true,
                 sameSite: "lax",
                 path: "/",
-                secure: process.env.NODE_ENV === "production",
-                domain: process.env.NODE_ENV === "production" ? ".musical-guacamole.jo" : undefined,
+                secure: useSecureCookies,
             },
         },
         pkceCodeVerifier: {
-            name: process.env.NODE_ENV === "production" ? "__Secure-authjs.pkce.code_verifier" : "authjs.pkce.code_verifier",
+            name: `${cookiePrefix}authjs.pkce.code_verifier`,
             options: {
                 httpOnly: true,
                 sameSite: "lax",
                 path: "/",
-                secure: process.env.NODE_ENV === "production",
-                maxAge: 900,
-                domain: process.env.NODE_ENV === "production" ? ".musical-guacamole.jo" : ".myapp.test",
+                secure: useSecureCookies,
+                domain: cookieDomain,
             },
         },
     },

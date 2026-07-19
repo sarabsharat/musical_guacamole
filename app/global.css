@@ -73,6 +73,9 @@
     --card-foreground: #1a1817;
     --popover: #ffffff;
     --popover-foreground: #1a1817;
+    /* lang */
+    --font-century: 'Century Gothic', sans-serif;
+    --font-arabic: 'Noto Sans Arabic', sans-serif;
 
     --primary: #5b3f7a;
     --primary-foreground: #f8f6f3;
@@ -190,20 +193,27 @@
 
 @layer base {
     * { @apply border-border outline-ring/50; }
-    body { @apply bg-background text-foreground; }
-    html {
-        @apply font-sans;
-        font-size: 20px;
+
+    /* ─── Default English font ────────────────── */
+    body {
+        font-family: var(--font-century), sans-serif;
+        @apply bg-background text-foreground;
     }
-}
 
-html[lang="ar"] body {
-    font-family: var(--font-arabic), var(--font-century), sans-serif;
-}
+    /* ─── Arabic override ────────────────────── */
+    html[lang="ar"] body {
+        font-family: var(--font-arabic), var(--font-century), sans-serif;
+    }
 
-html[lang="ar"] h1,
-html[lang="ar"] h2,
-html[lang="ar"] h3,
-html[lang="ar"] .font-heading {
-    font-family: var(--font-arabic), var(--font-century), sans-serif;
+    html[lang="ar"] h1,
+    html[lang="ar"] h2,
+    html[lang="ar"] h3,
+    html[lang="ar"] .font-heading {
+        font-family: var(--font-arabic), sans-serif;
+    }
+
+    html {
+        font-size: 20px;
+        /* Removed @apply font-sans – it overrides custom fonts */
+    }
 }

@@ -45,6 +45,13 @@ enum DraftStatus {
   FAILED
 }
 
+enum OnboardingStatus {
+  NOT_ONBOARDED
+  IN_PROCESS
+  FULLY_ONBOARDED
+  REJECTED
+}
+
 model User {
   id            Int         @id @default(autoincrement())
   email         String      @unique
@@ -85,7 +92,22 @@ model Restaurant {
   estimated_recipe_count Int?    // how many recipes they already have
   delivery_apps         String[]
   logo_url           String?   // URL to the restaurant logo
+  prospect_record   JordanDirectory?
   background_image_url String?
+}
+
+model JordanDirectory {
+  id                Int               @id @default(autoincrement())
+  business_name     String
+  city              String?
+  contact_number    String?
+  estimated_size    String?           // e.g., "Small", "Enterprise"
+
+  status            OnboardingStatus  @default(NOT_ONBOARDED)
+
+  // 🚨 The Bridge: If they DO eventually onboard, link them to their new active account!
+  active_tenant_id  Int?              @unique
+  active_tenant     Restaurant?       @relation(fields: [active_tenant_id], references: [id])
 }
 
 model IngredientReference {
@@ -114,6 +136,7 @@ model Recipe {
   status             RecipeStatus       @default(PENDING)
   rejection_reason   String?
   detected_allergens String[]           @default([])
+  created_at         DateTime           @default(now())
   ingredients        RecipeIngredient[]
   versions           RecipeVersion[]
   auditLogs AuditLog[]

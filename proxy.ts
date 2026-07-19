@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
     "/signup/jfda",
     "/signup/auditor",
     "/forgot-password",
+    "/error"
 ];
 
 const ONBOARDING_PATHS = ["/onboarding", "/denier"];
@@ -24,16 +25,26 @@ export async function proxy(request: NextRequest) {
     const parts = hostname.split(":");
     const hostWithoutPort = parts[0];
     const port = parts[1] || "";
-    const hostParts = hostWithoutPort.split(".");
-    let subdomain: string | null = null;
-    let rootDomain = hostWithoutPort;
 
-    if (hostParts.includes("localhost") && hostParts.length === 2) {
-        subdomain = hostParts[0];
-        rootDomain = "localhost";
-    } else if (hostParts.length >= 3) {
-        subdomain = hostParts[0];
-        rootDomain = hostParts.slice(1).join(".");
+    let subdomain: string | null = null;
+    let rootDomain = "local.bsharat.me"; // Default local base
+
+    if (process.env.NODE_ENV === "production") {
+        // Change this string to your exact production root domain (e.g., "musical-guacamole.jo")
+        const prodRoot = "musical-guacamole.jo";
+        rootDomain = prodRoot;
+
+        if (hostWithoutPort !== prodRoot && hostWithoutPort.endsWith(`.${prodRoot}`)) {
+            subdomain = hostWithoutPort.replace(`.${prodRoot}`, "");
+        }
+    } else {
+        // Local environment handling
+        if (hostWithoutPort === "localhost") {
+            rootDomain = "localhost";
+        } else if (hostWithoutPort !== "local.bsharat.me" && hostWithoutPort.endsWith(".local.bsharat.me")) {
+            // Extracts "dev-tenant" from "dev-tenant.local.bsharat.me"
+            subdomain = hostWithoutPort.replace(".local.bsharat.me", "");
+        }
     }
 
     const baseUrl = port ? `${rootDomain}:${port}` : rootDomain;

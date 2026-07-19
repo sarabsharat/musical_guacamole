@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslation } from "react-i18next"; // or your i18n hook
 import {
     LayoutDashboard,
     Utensils,
@@ -16,16 +17,18 @@ interface SidebarProps {
     role: string;
 }
 
+// Define the icon map (icons are not translated)
 const navItems = [
-    { name: "Dashboard", href: "/owner/dashboard", icon: LayoutDashboard },
-    { name: "Recipes", href: "/owner/recipes", icon: Utensils },
-    { name: "Drafts", href: "/owner/drafts", icon: FileText },
-    { name: "New Recipe", href: "/owner/submit", icon: Sparkles },
-    { name: "Settings", href: "/owner/settings", icon: Settings },
+    { key: "dashboard", href: "/owner/dashboard", icon: LayoutDashboard },
+    { key: "recipes", href: "/owner/recipes", icon: Utensils },
+    { key: "drafts", href: "/owner/drafts", icon: FileText },
+    { key: "newRecipe", href: "/owner/submit", icon: Sparkles },
+    { key: "settings", href: "/owner/settings", icon: Settings },
 ];
 
 export function Sidebar({ tenantName, role }: SidebarProps) {
     const pathname = usePathname();
+    const { t } = useTranslation("common"); // adjust namespace if needed
 
     return (
         <aside className="hidden md:flex md:w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground h-full min-h-screen sticky top-0 overflow-y-auto">
@@ -59,7 +62,7 @@ export function Sidebar({ tenantName, role }: SidebarProps) {
                             )}
                         >
                             <Icon className="h-5 w-5" />
-                            {item.name}
+                            {t(`sidebar.${item.key}`)}
                         </Link>
                     );
                 })}
@@ -68,7 +71,7 @@ export function Sidebar({ tenantName, role }: SidebarProps) {
             {/* Footer */}
             <div className="border-t border-sidebar-border p-4">
                 <p className="text-[10px] font-medium text-sidebar-foreground/40 text-center">
-                    {new Date().getFullYear()} Rima & Sara
+                    {new Date().getFullYear()} {t("sidebar.footer")}
                 </p>
             </div>
         </aside>

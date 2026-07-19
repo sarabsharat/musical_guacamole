@@ -1,5 +1,5 @@
-// src/app/layout.tsx
 import React from "react";
+import { cookies } from "next/headers"; // 👈 import
 import AuthProvider from "@/lib/utils/AuthProvider";
 import localFont from "next/font/local";
 import { Noto_Sans_Arabic } from "next/font/google";
@@ -12,7 +12,6 @@ export const metadata = {
     icons: { icon: "/favicon.ico" },
 };
 
-// ─── Century Gothic ──────────────────────────────────────
 const centuryGothic = localFont({
     src: [
         {
@@ -30,7 +29,6 @@ const centuryGothic = localFont({
     display: "swap",
 });
 
-// ─── Arabic font ──────────────────────────────────────────
 const notoSansArabic = Noto_Sans_Arabic({
     subsets: ["arabic"],
     variable: "--font-arabic",
@@ -38,22 +36,23 @@ const notoSansArabic = Noto_Sans_Arabic({
     display: "swap",
 });
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+    // ✅ Await cookies() before using .get()
+    const cookieStore = await cookies();
+    const locale = cookieStore.get("NEXT_LOCALE")?.value || "en";
+    const dir = locale === "ar" ? "rtl" : "ltr";
+
     return (
         <html
-            lang="en"
+            lang={locale}
+            dir={dir}
             suppressHydrationWarning
             className={cn(
                 centuryGothic.variable,
                 notoSansArabic.variable,
                 "min-h-screen"
             )}
-            style={
-                {
-                    "--font-sans": "var(--font-century)",
-                    "--font-heading": "var(--font-century)",
-                } as React.CSSProperties
-            }
+            // ❌ Remove inline style – let CSS handle font-family
         >
         <body
             suppressHydrationWarning

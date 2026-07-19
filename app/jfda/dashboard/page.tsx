@@ -1,50 +1,23 @@
-// app/jfda/dashboard/page.tsx
 import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, User, Mail } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import {getDashboardData} from "@/components/jfda/dashboard-data";
+import DashboardClient from "@/components/jfda/dashboard-client";
+import {requireJfdaAuth} from "@/lib/Authentication/RequireJfdaAuth";
 
 export default async function DashboardPage() {
-    const session = await auth();
+    const { user } = await requireJfdaAuth();
 
-    // Check authentication and role
-    if (!session || session.user.role !== "jfda_officer") {
-        redirect("/login");
-    }
+    // 2. Safely extract the data now that we know they are a verified officer
+    const fullName = user?.name || "JFDA Officer";
 
-    const user = session.user;
-    const fullName = user.name || "JFDA Officer";
-    const email = user.email || "";
+    // 3. Fetch the dashboard metrics
+    const data = await getDashboardData();
 
     return (
-        <div className="p-6 md:p-8 space-y-6">
-            <div className="border-b border-border pb-4">
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">JFDA Dashboard</h1>
-                <p className="text-base text-muted-foreground mt-1">Welcome to the JFDA officer portal</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
-                    <CardHeader className="flex flex-row items-start justify-between pb-2">
-                        <div className="space-y-1">
-                            <CardTitle className="text-base font-semibold">Profile Information</CardTitle>
-                            <CardDescription>Your current active session</CardDescription>
-                        </div>
-                        <ShieldCheck className="h-5 w-5 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent className="space-y-4 pt-4">
-                        <div className="flex items-center space-x-3 text-sm">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{fullName}</span>
-                        </div>
-                        <div className="flex items-center space-x-3 text-sm">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{email}</span>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
+        <DashboardClient
+            userFullName={fullName}
+            {...data}
+        />
     );
 }

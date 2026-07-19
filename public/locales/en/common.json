@@ -14,5 +14,13 @@
   "approved": "Approved",
   "flagged": "Flagged",
   "recent_additions": "Recent Additions",
-  "view_audit_log": "View Audit Log"
+  "view_audit_log": "View Audit Log",
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "recipes": "Recipes",
+    "drafts": "Drafts",
+    "newRecipe": "New Recipe",
+    "settings": "Settings",
+    "footer": "Rima & Sara"
+  }
 }
