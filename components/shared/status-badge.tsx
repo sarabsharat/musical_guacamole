@@ -1,58 +1,49 @@
-// src/components/shared/status-badge.tsx
+"use client";
+
 import React from "react";
-import { RecipeStatus, DraftStatus, CertStatus } from "@prisma/client";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
-type StatusType = RecipeStatus | DraftStatus | CertStatus;
+/**
+ * Single source of truth for status -> color across the whole app.
+ * Both the officer dashboard and the owner dashboard import this so
+ * "APPROVED" (etc.) always means the same color everywhere.
+ */
+const STATUS_COLOR: Record<string, string> = {
+    PENDING: "var(--carbs)",
+    APPROVED: "var(--protein)",
+    REJECTED: "var(--destructive)",
+    REVOKED: "var(--wine)",
+    FLAGGED: "var(--fats)",
+};
 
-interface BadgeProps {
-    status: StatusType;
-    className?: string; // Allows for additional styling overrides if needed
+export function getStatusColor(status: string) {
+    return STATUS_COLOR[status] ?? "var(--muted-foreground)";
 }
 
-export function StatusBadge({ status, className }: BadgeProps) {
-    let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
-    let customClasses = "";
+// Map status to translation key
+const STATUS_TRANSLATION_KEY: Record<string, string> = {
+    PENDING: "status.pending",
+    APPROVED: "status.approved",
+    REJECTED: "status.rejected",
+    REVOKED: "status.revoked",
+    FLAGGED: "status.flagged",
+};
 
-    switch (status) {
-        case "APPROVED":
-        case "RESOLVED":
-        case "ACTIVE":
-            // Soft green for success states
-            variant = "secondary";
-            customClasses = "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-transparent";
-            break;
-
-        case "PENDING":
-        case "PROCESSING":
-            // Soft amber for waiting states (removed the harsh pulse)
-            variant = "secondary";
-            customClasses = "bg-amber-100 text-amber-800 hover:bg-amber-200 border-transparent";
-            break;
-
-        case "REJECTED":
-        case "FAILED":
-            // Uses Shadcn's built-in destructive (red) theme
-            variant = "destructive";
-            break;
-
-        case "REVOKED":
-            // Uses Shadcn's default primary color (usually solid black/dark gray)
-            variant = "default";
-            break;
-    }
+export function StatusBadge({ status }: { status: string }) {
+    const { t } = useTranslation("common");
+    const color = getStatusColor(status);
+    const label = t(STATUS_TRANSLATION_KEY[status] || status, { defaultValue: status });
 
     return (
-        <Badge
-            variant={variant}
-            className={cn(
-                "px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                customClasses,
-                className
-            )}
+        <span
+            className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold uppercase tracking-wide"
+            style={{
+                color,
+                borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
+                backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
+            }}
         >
-            {status}
-        </Badge>
+            {label}
+        </span>
     );
 }

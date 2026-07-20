@@ -66,26 +66,34 @@
 // app/signup/page.tsx
 "use client";
 
+"use client";
+
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Store, ShieldCheck, ClipboardCheck } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import {setGoogleUserRole} from "@/app/(auth)/signup/action";
-
+import { setGoogleUserRole } from "@/app/(auth)/signup/action";
 
 export default function SignupHubPage() {
-    // Bring in update() to refresh the cookie without requiring a page reload
-    const { data: session, update } = useSession();
+    // 🚨 1. Bring in "status" so we know exactly when NextAuth is ready
+    const { data: session, status, update } = useSession();
     const router = useRouter();
 
     const handleRoleClick = async (role: string, defaultPath: string, redirectPath: string) => {
+        // Prevent accidental clicks if NextAuth is still figuring out if they are logged in
+        if (status === "loading") return;
+
         // 1️⃣ IF LOGGED IN (Google User): Assign role and fast-track them
-        if (session) {
+        if (session?.user) {
             await setGoogleUserRole(role);
+
             // Update the NextAuth cookie on the client so the onboarding form grants access
             await update({ user: { ...session.user, role } });
-            window.location.href = redirectPath;
+
+            // 🚨 2. Use the Next.js router instead of window.location for a seamless redirect
+            router.push(redirectPath);
+            router.refresh(); // Forces layout/middleware to see the new cookie immediately
         }
         // 2️⃣ IF NOT LOGGED IN (Normal User): Send to the email/password form
         else {
@@ -152,7 +160,7 @@ export default function SignupHubPage() {
                 </div>
 
                 {/* Hide the login text if they are already logged in via Google */}
-                {!session && (
+                {!session && status !== "loading" && (
                     <div className="text-center text-sm text-muted-foreground">
                         Already have an account?{" "}
                         <Link href="/login" className="font-medium text-primary hover:underline">

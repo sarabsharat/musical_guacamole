@@ -22,5 +22,43 @@
     "newRecipe": "New Recipe",
     "settings": "Settings",
     "footer": "Rima & Sara"
+  },
+  "jfda": {
+    "dashboard": {
+      "search_placeholder": "Search Recipe or Restaurant...",
+      "all_statuses": "All Statuses",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "last_3_months": "Last 3 Months",
+      "last_30_days": "Last 30 Days",
+      "last_7_days": "Last 7 Days",
+      "product_meal": "Product / Meal",
+      "applicant": "Applicant",
+      "status": "Status",
+      "submission_date": "Submission Date",
+      "recent_applications": "Recent Applications",
+      "recent_applications_desc": "Latest submissions requiring officer review",
+      "no_matching": "No matching applications found.",
+      "total_applications": "Total Applications",
+      "pending_review": "Pending Review",
+      "approved_label": "Approved",
+      "rejected_label": "Rejected",
+      "awaiting_action": "Awaiting your action",
+      "application_submissions": "Application Submissions",
+      "monthly_volume": "Monthly volume over the last 6 months",
+      "status_distribution": "Status Distribution",
+      "current_state": "Current state of all submitted applications",
+      "overview_by_status": "Overview by Status",
+      "comparative_metrics": "Comparative metrics across categories",
+      "showing_items": "Showing {{count}} of {{total}} items"
+    }
+  },
+  "status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "revoked": "Revoked",
+    "flagged": "Flagged"
   }
 }

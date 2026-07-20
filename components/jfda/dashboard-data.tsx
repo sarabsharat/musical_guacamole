@@ -39,15 +39,18 @@ export async function getDashboardData() {
         { name: "Rejected", value: rejectedCount, fill: "var(--destructive)" }, // or "var(--chart-4)"
     ];
 
-    // Transform recent applications
+
     const recentApplications = recentRecipes.map((recipe) => ({
         id: recipe.id,
         product: recipe.meal_name,
         applicant: recipe.restaurant?.business_name || "Unknown",
-        status: recipe.status === "REVOKED" ? "REJECTED" : recipe.status,
-        date: recipe.created_at
-            ? new Date(recipe.created_at).toISOString().split("T")[0]
-            : "N/A",
+
+        // 🚨 ADD THESE TWO LINES: The client needs these to build the URL!
+        restaurantName: recipe.restaurant?.business_name || "Unknown",
+        restaurantId: recipe.restaurant_id,
+
+        status: recipe.status,
+        date: recipe.created_at.toISOString().split("T")[0],
     }));
 
     // Monthly aggregation for trend chart

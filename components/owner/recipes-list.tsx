@@ -22,6 +22,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Eye, Edit, FileText, Plus } from "lucide-react";
+import {StatusBadge} from "@/components/shared/status-badge";
 
 interface Recipe {
     id: number;
@@ -40,24 +41,7 @@ interface RecipesListProps {
     totalPages: number;
 }
 
-const statusConfig: Record<string, { label: string; class: string }> = {
-    PENDING: {
-        label: "Pending",
-        class: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:bg-amber-400/10",
-    },
-    APPROVED: {
-        label: "Approved",
-        class: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-400/10",
-    },
-    REJECTED: {
-        label: "Rejected",
-        class: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 dark:bg-rose-400/10",
-    },
-    REVOKED: {
-        label: "Revoked",
-        class: "bg-gray-500/10 text-gray-600 border-gray-500/20 dark:text-gray-400 dark:bg-gray-400/10",
-    },
-};
+
 
 export function RecipesList({ recipes, currentPage, totalPages }: RecipesListProps) {
     const router = useRouter();
@@ -125,12 +109,7 @@ export function RecipesList({ recipes, currentPage, totalPages }: RecipesListPro
                                     {recipe.meal_name}
                                 </TableCell>
                                 <TableCell className="py-3">
-                                    <Badge
-                                        variant="outline"
-                                        className={`${statusConfig[recipe.status]?.class || "bg-muted text-muted-foreground"} border-0 font-medium text-xs px-3 py-1`}
-                                    >
-                                        {statusConfig[recipe.status]?.label || recipe.status}
-                                    </Badge>
+                                    <StatusBadge status={recipe.status} />
                                 </TableCell>
                                 <TableCell className="py-3 text-right text-base tabular-nums text-foreground">
                                     {recipe.calories?.toFixed(0) || "—"}

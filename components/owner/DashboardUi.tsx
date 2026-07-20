@@ -11,6 +11,7 @@ import {
     Clock,
     ArrowRight,
 } from "lucide-react";
+import {StatusBadge} from "@/components/shared/status-badge";
 
 interface DashboardData {
     totalRecipes: number;
@@ -153,18 +154,7 @@ export function DashboardUi({ data }: { data: DashboardData }) {
                                 <span className="text-base font-medium text-card-foreground">
                                     {recipe.meal_name}
                                 </span>
-                                <span
-                                    className={`text-xs font-bold uppercase px-3 py-1 rounded-md border ${
-                                        recipe.status === 'APPROVED'
-                                            ? 'bg-[var(--protein)]/10 text-[var(--protein)] border-[var(--protein)]/20'
-                                            : recipe.status === 'PENDING'
-                                                ? 'bg-[var(--carbs)]/10 text-[var(--carbs)] border-[var(--carbs)]/20'
-                                                : 'bg-[var(--fats)]/10 text-[var(--fats)] border-[var(--fats)]/20'
-                                        
-                                    }`}
-                                >
-                                    {recipe.status}
-                                </span>
+                                <StatusBadge status={recipe.status} />
                             </div>
                         ))}
                     </div>

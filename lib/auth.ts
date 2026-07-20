@@ -6,6 +6,7 @@ import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
+import { headers } from "next/headers"; // 🚨 Imported headers for subdomain detection
 
 // ─── Extend types ──────────────────────────────────────────────
 declare module "next-auth" {
@@ -19,7 +20,7 @@ declare module "next-auth" {
         } & DefaultSession["user"];
     }
     interface User {
-        dbId?: number; // 🚨 Added to allow safely passing the Prisma integer ID
+        dbId?: number;
         role: Role | null;
         restaurantId: number | null;
         slug: string | null;
@@ -68,7 +69,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 return {
                     id: String(user.id),
-                    dbId: user.id, // 🚨 Smuggle the real database integer
+                    dbId: user.id,
                     email: user.email,
                     name: user.full_name,
                     role: user.role,
@@ -95,7 +96,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const email = profile.email;
                 if (!email) throw new Error("No email provided by Google");
 
-                // 🚨 Added `include: { restaurant: true }` so we can access the slug
                 let user = await prisma.user.findUnique({
                     where: { email },
                     include: { restaurant: true },
@@ -116,12 +116,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 return {
                     id: String(user.id),
-                    dbId: user.id, // 🚨 Smuggle the real database integer
+                    dbId: user.id,
                     email: user.email,
                     name: user.full_name,
                     role: user.role,
                     restaurantId: user.restaurant?.id || null,
-                    slug: user.restaurant?.slug || null, // ✅ Fixes the TS2322 Error
+                    slug: user.restaurant?.slug || null,
                     is_active: user.is_active,
                 };
             },
@@ -137,7 +137,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     callbacks: {
         async jwt({ token, user, trigger, session }) {
             if (user) {
-                // 🚨 Override NextAuth's UUID with our smuggled database integer
                 token.id = String(user.dbId || user.id);
                 token.role = user.role;
                 token.restaurantId = user.restaurantId;
@@ -166,6 +165,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         // ─── SignIn callback ──────────────────────────────────────
         async signIn({ user }) {
+            const headersList = await headers();
+            const host = headersList.get("host") || "";
+            const hostWithoutPort = host.split(":")[0];
+
+            let subdomain: string | null = null;
+            const prodRoot = "musical-guacamole.jo";
+            const localRoot = "local.bsharat.me";
+
+            if (process.env.NODE_ENV === "production") {
+                if (hostWithoutPort !== prodRoot && hostWithoutPort.endsWith(`.${prodRoot}`)) {
+                    subdomain = hostWithoutPort.replace(`.${prodRoot}`, "");
+                }
+            } else {
+                if (hostWithoutPort !== localRoot && hostWithoutPort.endsWith(`.${localRoot}`)) {
+                    subdomain = hostWithoutPort.replace(`.${localRoot}`, "");
+                }
+            }
+
+            // 🚨 1. NEW CHECK: Block owners from logging in on the main domain
+            if (!subdomain && user.role === "restaurant_owner" && user.slug) {
+                console.log(`🚫 [NextAuth] Login Aborted! Owner ${user.slug} tried to log in on the main domain.`);
+                return `/login?error=MainDomainLogin`;
+            }
+
+            // 🚨 2. EXISTING CHECK: Block login if the subdomain doesn't match their slug
+            if (subdomain && user.role === "restaurant_owner" && user.slug) {
+                if (subdomain !== user.slug) {
+                    console.log(`🚫 [NextAuth] Login Aborted! ${user.slug} tried logging into ${subdomain}`);
+                    return `/login?error=TenantMismatch`;
+                }
+            }
+
             return true;
         },
     },
@@ -196,7 +227,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
         },
         csrfToken: {
-            // CSRF uses __Host- in production, which CANNOT have a domain attribute
             name: useSecureCookies ? `__Host-authjs.csrf-token` : `authjs.csrf-token`,
             options: {
                 httpOnly: true,
@@ -232,7 +262,6 @@ export async function getServerSession() {
         email: session.user.email || "",
         name: session.user.name || "",
         role: session.user.role,
-        // 🚨 Make sure these are pulled from session.user
         restaurantId: session.user.restaurantId,
         slug: session.user.slug,
         is_active: session.user.is_active ?? true,

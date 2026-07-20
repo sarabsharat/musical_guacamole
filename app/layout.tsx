@@ -6,7 +6,9 @@ import { Noto_Sans_Arabic } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
 import { I18nProvider } from "@/components/providers/i18nProvider";
+import { Toaster } from "@/components/ui/sonner";
 import "@/app/global.css";
+import {SessionProvider} from "next-auth/react";
 
 export const metadata = {
     icons: { icon: "/favicon.ico" },
@@ -60,6 +62,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 "min-h-screen bg-background font-sans antialiased text-foreground"
             )}
         >
+        <SessionProvider>
         <ThemeProvider
             attribute="class"
             defaultTheme="system"
@@ -69,9 +72,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <I18nProvider>
                 <AuthProvider>
                     <main>{children}</main>
+                    <Toaster richColors position="top-center" />
                 </AuthProvider>
             </I18nProvider>
         </ThemeProvider>
+            </SessionProvider>
         </body>
         </html>
     );

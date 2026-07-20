@@ -148,3 +148,88 @@ export async function revokeRestaurantCompliance(
         return { success: false, message };
     }
 }
+// ═══════════════════════════════════════════════════════════════
+// CERTIFY RECIPE APPLICATION - JFDA Approval
+// ═══════════════════════════════════════════════════════════════
+
+// Define this schema at the top of your file or in your validations folder
+const certifySchema = z.object({
+    recipeId: z.number(),
+    restaurantId: z.number(),
+});
+
+export async function certifyRecipeApplication(
+    _mockUser: unknown,
+    input: unknown
+) {
+    try {
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 1: AUTH WALL - Verify JFDA officer authentication
+        // ═════════════════════════════════════════════════════════════════
+        const { userId } = await requireJfdaAuth();
+
+        console.log("✅ [JfdaAction] Certifying recipe application. Officer:", userId);
+
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 2: ZOD VALIDATION - Validate input
+        // ═════════════════════════════════════════════════════════════════
+        const validated = certifySchema.safeParse(input);
+        if (!validated.success) {
+            console.log("❌ [JfdaAction] Validation failed:", validated.error.issues);
+            return {
+                success: false,
+                message: validated.error.issues[0]?.message || "Validation failed",
+            };
+        }
+
+        const { recipeId, restaurantId } = validated.data;
+
+        // ═════════════════════════════════════════════════════════════════
+        // LAYER 3: NO TENANT ISOLATION - JFDA can certify any recipe
+        // ═════════════════════════════════════════════════════════════════
+
+        const recipe = await prisma.recipe.findUnique({
+            where: { id: recipeId },
+        });
+
+        if (!recipe) {
+            return { success: false, message: "Application/Recipe not found." };
+        }
+
+        if (recipe.status === RecipeStatus.APPROVED) {
+            return { success: false, message: "This recipe is already certified." };
+        }
+
+        // Transaction: Update recipe status and log the action
+        await prisma.$transaction(async (tx) => {
+            await tx.recipe.update({
+                where: { id: recipeId },
+                data: {
+                    status: RecipeStatus.APPROVED,
+                    rejection_reason: null, // Clear any previous rejection reasons
+                },
+            });
+
+            // Automatically upgrade the restaurant's cert level if needed here (optional logic)
+
+            await tx.auditLog.create({
+                data: {
+                    actor_id: Number(userId),
+                    restaurant_id: restaurantId,
+                    action: "REGULATORY_COMPLIANCE_APPROVED",
+                    payload: { recipeId },
+                },
+            });
+        });
+
+        console.log("✅ [JfdaAction] Recipe successfully certified:", recipeId);
+
+        revalidatePath("/jfda/dashboard");
+
+        return { success: true, message: "Application successfully certified." };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to certify application.";
+        console.error("❌ [JfdaAction] Error:", message);
+        return { success: false, message };
+    }
+}

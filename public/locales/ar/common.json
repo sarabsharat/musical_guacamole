@@ -22,5 +22,46 @@
     "newRecipe": "وصفة جديدة",
     "settings": "الإعدادات",
     "footer": "ريما وسارة"
+  },
+  "jfda": {
+    "dashboard": {
+      "search_placeholder": "ابحث عن وصفة أو مطعم...",
+      "all_statuses": "جميع الحالات",
+      "pending": "قيد الانتظار",
+      "approved": "موافق عليه",
+      "rejected": "مرفوض",
+      "last_3_months": "آخر 3 أشهر",
+      "last_30_days": "آخر 30 يومًا",
+      "last_7_days": "آخر 7 أيام",
+      "product_meal": "المنتج / الوجبة",
+      "applicant": "مقدم الطلب",
+      "status": "الحالة",
+      "submission_date": "تاريخ التقديم",
+      "recent_applications": "الطلبات الأخيرة",
+      "recent_applications_desc": "أحدث الطلبات التي تنتظر مراجعة المسؤول",
+      "no_matching": "لم يتم العثور على طلبات مطابقة.",
+      "total_applications": "إجمالي الطلبات",
+      "pending_review": "قيد المراجعة",
+      "approved_label": "موافق عليه",
+      "rejected_label": "مرفوض",
+      "awaiting_action": "في انتظار إجراءك",
+      "application_submissions": "تقديمات الطلبات",
+      "monthly_volume": "الحجم الشهري خلال الـ 6 أشهر الماضية",
+      "status_distribution": "توزيع الحالات",
+      "current_state": "الحالة الحالية لجميع الطلبات المقدمة",
+      "overview_by_status": "نظرة عامة حسب الحالة",
+      "comparative_metrics": "مقاييس مقارنة عبر الفئات",
+      "showing_items": "عرض {{count}} من {{total}} عناصر"
+    }
+  },
+
+  "status": {
+    "pending": "قيد الانتظار",
+    "approved": "موافق عليه",
+    "rejected": "مرفوض",
+    "revoked": "ملغي",
+    "flagged": "مُعلَّم"
   }
+
+
 }

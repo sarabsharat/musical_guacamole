@@ -10,7 +10,7 @@ export default async function DashboardPage() {
     console.log("DEBUG: Dashboard Loading for:", { restaurantId, slug });
 
     // Ensure your query matches the DB schema:
-    const restaurant = await prisma.restaurant.findUnique({
+    const restaurant = await prisma.restaurant.findFirst({
         where: { id: restaurantId }, // or where: { slug: slug }
     });
 

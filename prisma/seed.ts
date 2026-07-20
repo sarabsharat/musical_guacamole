@@ -186,8 +186,8 @@ async function main() {
         data: { email: 'leen@dumplings.com', password_hash: sharedPasswordHash, role: Role.restaurant_owner, full_name: 'Leen', phone_number: '+962795555555' }
     });
 
-    const ownerMira = await prisma.user.create({
-        data: { email: 'mira@morningcafe.com', password_hash: sharedPasswordHash, role: Role.restaurant_owner, full_name: 'Mira', phone_number: '+962796666666' }
+    const ownerMarah = await prisma.user.create({
+        data: { email: 'marah@morningcafe.com', password_hash: sharedPasswordHash, role: Role.restaurant_owner, full_name: 'Marah', phone_number: '+962796666666' }
     });
 
     const ownerAdam = await prisma.user.create({
@@ -339,14 +339,14 @@ async function main() {
     });
 
     // --- Restaurant 2: The "Newbie" Case (Pending, Level 1) ---
-    const restMira = await prisma.restaurant.create({
+    const restMarah = await prisma.restaurant.create({
         data: {
-            slug: 'mira-morning-cafe',
-            business_name: 'Mira Morning Cafe',
+            slug: 'marah-morning-cafe',
+            business_name: 'Marah Morning Cafe',
             address_line: 'Weibdeh, Amman',
             cert_status: CertStatus.PENDING,
             cert_level: CertLevel.LEVEL_1,
-            owner_id: ownerMira.id,
+            owner_id: ownerMarah.id,
             profile: {
                 create: {
                     hasDedicatedAllergenZones: false,
@@ -362,7 +362,7 @@ async function main() {
 
     await prisma.recipe.create({
         data: {
-            restaurant_id: restMira.id,
+            restaurant_id: restMarah.id,
             meal_name: 'Iced Turkish Coffee',
             image_url: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Traditional unfiltered chilled coffee served over clear cracked ice with drops of cardamom.',
@@ -381,7 +381,7 @@ async function main() {
 
     await prisma.recipe.create({
         data: {
-            restaurant_id: restMira.id,
+            restaurant_id: restMarah.id,
             meal_name: 'Low Fat Greek Yogurt Parfait',
             image_url: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80',
             preparation_notes: 'Strained low fat yogurt topped with organic mountain honey syrup and dried raisins.',

@@ -53,61 +53,62 @@ enum OnboardingStatus {
 }
 
 model User {
-  id            Int         @id @default(autoincrement())
-  email         String      @unique
-  password_hash String?
-  phone_number  String?
-  full_name     String?
-  name          String?
-  image         String?
-  emailVerified DateTime?
-  role          Role?
-  created_at    DateTime    @default(now())
-  is_active     Boolean     @default(true)
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  password_hash     String?
+  phone_number      String?
+  full_name         String?
+  name              String?
+  image             String?
+  emailVerified     DateTime?
+  role              Role?
+  created_at        DateTime           @default(now())
+  is_active         Boolean            @default(true)
+  notificationReads NotificationRead[]
 
-  restaurant    Restaurant?
+  restaurant Restaurant?
 
-  auditLogs     AuditLog[]
-  reset_tokens  PasswordResetToken[]
-  accounts      Account[]
-  sessions      Session[]
+  auditLogs    AuditLog[]
+  reset_tokens PasswordResetToken[]
+  accounts     Account[]
+  sessions     Session[]
 }
 
 model Restaurant {
   id Int @id @default(autoincrement())
 
-  slug          String  @unique // e.g., "burger-lab" for burger-lab.yourapp.jo
-  custom_domain String? @unique // e.g., "nutrition.burgerlab.com"
-  plan_tier     String  @default("free")
-  business_name String
-  address_line  String
-  cert_status   CertStatus              @default(NONE)
-  cert_level    CertLevel               @default(LEVEL_1)
-  owner_id      Int                     @unique
-  owner         User                    @relation(fields: [owner_id], references: [id])
-  recipes       Recipe[]
-  profile       KitchenControlProfile[]
-  recipeDrafts  RecipeDraft[]
-  auditLogs AuditLog[]
-  estimated_recipe_count Int?    // how many recipes they already have
-  delivery_apps         String[]
-  logo_url           String?   // URL to the restaurant logo
-  prospect_record   JordanDirectory?
-  background_image_url String?
+  slug                   String                  @unique // e.g., "burger-lab" for burger-lab.yourapp.jo
+  custom_domain          String?                 @unique // e.g., "nutrition.burgerlab.com"
+  plan_tier              String                  @default("free")
+  business_name          String
+  address_line           String
+  cert_status            CertStatus              @default(NONE)
+  cert_level             CertLevel               @default(LEVEL_1)
+  owner_id               Int                     @unique
+  owner                  User                    @relation(fields: [owner_id], references: [id])
+  recipes                Recipe[]
+  profile                KitchenControlProfile[]
+  recipeDrafts           RecipeDraft[]
+  auditLogs              AuditLog[]
+  estimated_recipe_count Int? // how many recipes they already have
+  delivery_apps          String[]
+  logo_url               String? // URL to the restaurant logo
+  prospect_record        JordanDirectory?
+  background_image_url   String?
 }
 
 model JordanDirectory {
-  id                Int               @id @default(autoincrement())
-  business_name     String
-  city              String?
-  contact_number    String?
-  estimated_size    String?           // e.g., "Small", "Enterprise"
+  id             Int     @id @default(autoincrement())
+  business_name  String
+  city           String?
+  contact_number String?
+  estimated_size String? // e.g., "Small", "Enterprise"
 
-  status            OnboardingStatus  @default(NOT_ONBOARDED)
+  status OnboardingStatus @default(NOT_ONBOARDED)
 
   // 🚨 The Bridge: If they DO eventually onboard, link them to their new active account!
-  active_tenant_id  Int?              @unique
-  active_tenant     Restaurant?       @relation(fields: [active_tenant_id], references: [id])
+  active_tenant_id Int?        @unique
+  active_tenant    Restaurant? @relation(fields: [active_tenant_id], references: [id])
 }
 
 model IngredientReference {
@@ -137,9 +138,10 @@ model Recipe {
   rejection_reason   String?
   detected_allergens String[]           @default([])
   created_at         DateTime           @default(now())
+  notificationReads  NotificationRead[]
   ingredients        RecipeIngredient[]
   versions           RecipeVersion[]
-  auditLogs AuditLog[]
+  auditLogs          AuditLog[]
 }
 
 model RecipeIngredient {
@@ -157,10 +159,10 @@ model KitchenControlProfile {
   restaurantId Int @unique
 
   // Specific toggles for the two controls you want
-  hasDedicatedAllergenZones Boolean @default(false)
-  usesStandardizedRecipes   Boolean @default(false)
-  has_allergen_separation   Boolean @default(false)
-  uses_calorie_tracking     Boolean @default(false)
+  hasDedicatedAllergenZones    Boolean @default(false)
+  usesStandardizedRecipes      Boolean @default(false)
+  has_allergen_separation      Boolean @default(false)
+  uses_calorie_tracking        Boolean @default(false)
   has_cross_contamination_plan Boolean @default(false)
 
   updatedAt  DateTime   @updatedAt
@@ -188,16 +190,16 @@ model RecipeDraft {
 }
 
 model AuditLog {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   actor_id      Int
-  actor         User     @relation(fields: [actor_id], references: [id])
+  actor         User        @relation(fields: [actor_id], references: [id])
   restaurant_id Int?
   restaurant    Restaurant? @relation(fields: [restaurant_id], references: [id])
   recipe_id     Int?
-  recipe        Recipe?  @relation(fields: [recipe_id], references: [id])
+  recipe        Recipe?     @relation(fields: [recipe_id], references: [id])
   action        String
   payload       Json?
-  created_at    DateTime @default(now())
+  created_at    DateTime    @default(now())
 }
 
 model PasswordResetToken {
@@ -211,18 +213,18 @@ model PasswordResetToken {
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             Int     // Matches the Int type of User.id
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @db.Text
-  access_token       String?  @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?  @db.Text
-  session_state      String?
+  id                String  @id @default(cuid())
+  userId            Int // Matches the Int type of User.id
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -232,7 +234,7 @@ model Account {
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
-  userId       Int      // Matches the Int type of User.id
+  userId       Int // Matches the Int type of User.id
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -243,4 +245,15 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model NotificationRead {
+  id       Int      @id @default(autoincrement())
+  userId   Int
+  user     User     @relation(fields: [userId], references: [id])
+  recipeId Int // or auditLogId, depending on what you're tracking
+  recipe   Recipe   @relation(fields: [recipeId], references: [id])
+  readAt   DateTime @default(now())
+
+  @@unique([userId, recipeId]) // prevent duplicates
 }

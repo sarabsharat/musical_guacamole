@@ -1,6 +1,6 @@
 // lib/Authentication/RequireJfdaAuth.ts
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth"; // 🚨 Use 'auth' instead of 'getServerSession'
+import { auth } from "@/lib/auth";
 
 export async function requireJfdaAuth() {
     const session = await auth();
