@@ -22,5 +22,9 @@ export const resolveDraftSchema = z.object({
 });
 
 export const deleteDraftSchema = z.object({
-    id: z.number().int().positive(),
+    ids: z.union([
+        z.number(),
+        z.array(z.number()),
+        z.array(z.string().transform((val) => parseInt(val, 10)))
+    ]).transform((val) => (Array.isArray(val) ? val : [val]))
 });

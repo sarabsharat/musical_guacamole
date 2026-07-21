@@ -11,31 +11,27 @@ import {
     updateRecipeSchema,
     createManualRecipeSchema,
 } from "@/lib/validations/recipe-schema";
-import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth"; // 👈 Un-hackable security
+import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
 import { z } from "zod";
 
 // ───────────────────────────────────────────────────────────────
 // ─── Get Owner Recipes ─────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
-export async function getOwnerRecipes(_mockUser: unknown, query: FetchRecipesQuery) {
-    // 🚨 SECURITY 1: Auth Wall (Ignores the mockUser passed from the client)
+export async function getOwnerRecipes(query: FetchRecipesQuery) {
     const { restaurantId } = await requireOwnerAuth();
 
     try {
         const skip = (query.page - 1) * query.limit;
 
-        // 🚨 SECURITY 3: Strict Tenant Isolation
         const whereClause: Prisma.RecipeWhereInput = {
             restaurant_id: restaurantId,
             ...(query.status ? { status: query.status } : {}),
-            ...(query.search
-                ? {
-                    meal_name: {
-                        contains: query.search,
-                        mode: "insensitive",
-                    },
-                }
-                : {}),
+            ...(query.search ? { meal_name: { contains: query.search, mode: "insensitive" } } : {}),
+            ...(query.allergens && query.allergens.length > 0 ? {
+                detected_allergens: { hasSome: query.allergens }
+            } : {}),
+            ...(query.calMin !== undefined && query.calMin > 0 ? { calories: { gte: query.calMin } } : {}),
+            ...(query.calMax !== undefined && query.calMax > 0 ? { calories: { lte: query.calMax } } : {}),
         };
 
         const [recipes, totalCount] = await prisma.$transaction([
@@ -66,17 +62,15 @@ export async function getOwnerRecipes(_mockUser: unknown, query: FetchRecipesQue
 // ───────────────────────────────────────────────────────────────
 // ─── Revert to Recipe Version ──────────────────────────────────
 // ───────────────────────────────────────────────────────────────
-export async function revertToRecipeVersion(_mockUser: unknown, recipeId: number, versionId: number) {
-    // 🚨 SECURITY 1: Auth Wall
+export async function revertToRecipeVersion(recipeId: number, versionId: number) {
     const { userId, restaurantId } = await requireOwnerAuth();
 
     try {
-        // 🚨 SECURITY 3: Tenant Isolation Verification
         const versionRecord = await prisma.recipeVersion.findFirst({
             where: {
                 id: versionId,
                 recipe_id: recipeId,
-                recipe: { restaurant_id: restaurantId }, // 👈 Locks to the authenticated tenant
+                recipe: { restaurant_id: restaurantId },
             },
         });
 
@@ -141,7 +135,6 @@ export async function revertToRecipeVersion(_mockUser: unknown, recipeId: number
                 });
             }
 
-            // 👈 FIX: Convert Auth.js string ID to Prisma Int ID
             await tx.auditLog.create({
                 data: {
                     actor_id: Number(userId),
@@ -165,102 +158,56 @@ export async function revertToRecipeVersion(_mockUser: unknown, recipeId: number
 // ───────────────────────────────────────────────────────────────
 // ─── Update Recipe ─────────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
-export async function updateRecipe(_mockUser: unknown, recipeId: number, payload: UpdateRecipePayload) {
-    // 🚨 SECURITY 1: Auth Wall
+export async function updateRecipe(recipeId: number, payload: UpdateRecipePayload) {
     const { userId, restaurantId } = await requireOwnerAuth();
 
-    // 🚨 SECURITY 2: Validation
-    const validated = updateRecipeSchema.safeParse(payload);
-    if (!validated.success) {
-        return { success: false, message: validated.error.issues[0].message };
+    const existingRecipe = await prisma.recipe.findFirst({
+        where: { id: recipeId, restaurant_id: restaurantId },
+    });
+    if (!existingRecipe) {
+        return { success: false, message: "Recipe not found." };
     }
-    const validData = validated.data;
 
-    try {
-        // 🚨 SECURITY 3: Tenant Isolation Verification (Ensure they own this recipe before updating)
-        const existingRecipe = await prisma.recipe.findFirst({
-            where: { id: recipeId, restaurant_id: restaurantId }
+    await prisma.$transaction(async (tx) => {
+        await tx.recipe.update({
+            where: { id: recipeId },
+            data: {
+                meal_name: payload.meal_name,
+                preparation_notes: payload.preparation_notes,
+                image_url: payload.image_url,
+                status: "PENDING",
+            },
         });
 
-        if (!existingRecipe) {
-            return { success: false, message: "Recipe not found or access denied." };
-        }
-
-        const ingredientRefs = await prisma.ingredientReference.findMany({
-            where: { id: { in: validData.ingredients.map((i) => i.ingredient_id) } },
+        await tx.recipeIngredient.deleteMany({
+            where: { recipe_id: recipeId },
         });
 
-        const totals = calculateServerRecipeTotals(validData.ingredients, ingredientRefs);
-
-        await prisma.$transaction(async (tx) => {
-            await tx.recipeIngredient.deleteMany({ where: { recipe_id: recipeId } });
-
-            for (const rawIng of validData.ingredients) {
-                await tx.recipeIngredient.create({
-                    data: {
-                        recipe_id: recipeId,
-                        ingredient_id: rawIng.ingredient_id,
-                        user_stated_amount: rawIng.user_stated_amount,
-                        normalized_grams: new Prisma.Decimal(rawIng.normalized_grams),
-                    },
-                });
-            }
-
-            await tx.recipe.update({
-                where: { id: recipeId },
-                data: {
-                    meal_name: validData.meal_name,
-                    preparation_notes: validData.preparation_notes,
-                    image_url: validData.image_url,
-                    calories: totals.calories,
-                    protein: totals.protein,
-                    carbs: totals.carbs,
-                    total_fat: totals.total_fat,
-                    detected_allergens: totals.detected_allergens,
-                    status: RecipeStatus.PENDING,
-                    rejection_reason: null,
-                },
-            });
-
-            // 👈 FIX: Convert Auth.js string ID to Prisma Int ID
-            await tx.auditLog.create({
-                data: {
-                    actor_id: Number(userId),
-                    restaurant_id: restaurantId,
-                    recipe_id: recipeId,
-                    action: "RECIPE_UPDATED_BY_OWNER",
-                    payload: JSON.parse(JSON.stringify({
-                        meal_name: validData.meal_name,
-                        calories: totals.calories,
-                    })),
-                },
-            });
+        await tx.recipeIngredient.createMany({
+            data: payload.ingredients.map((ing) => ({
+                recipe_id: recipeId,
+                ingredient_id: ing.ingredient_id,
+                user_stated_amount: ing.user_stated_amount,
+                normalized_grams: ing.normalized_grams,
+            })),
         });
+    });
 
-        revalidatePath(`/owner/recipes/${recipeId}`);
-        revalidatePath("/owner/recipes");
-        return { success: true, message: "Recipe updated successfully. Pending re-verification." };
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : "Failed to update recipe.";
-        return { success: false, message: errorMessage };
-    }
+    return { success: true, message: "Recipe updated." };
 }
 
 // ───────────────────────────────────────────────────────────────
 // ─── Get Recipe Details ────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
 export async function getRecipeDetails(recipeId: number) {
-    // 🚨 SECURITY 1: Auth Wall
     const { restaurantId } = await requireOwnerAuth();
 
-    // 🚨 SECURITY 2: Validation
     const validated = z.number().int().positive().safeParse(recipeId);
     if (!validated.success) {
         return { success: false, message: "Invalid recipe ID." };
     }
 
     try {
-        // 🚨 SECURITY 3: Tenant Isolation
         const recipe = await prisma.recipe.findUnique({
             where: {
                 id: recipeId,
@@ -292,13 +239,11 @@ export async function getRecipeDetails(recipeId: number) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// ─── Create Manual Recipe (without AI) ─────────────────────────
+// ─── Create Manual Recipe ──────────────────────────────────────
 // ───────────────────────────────────────────────────────────────
 export async function createManualRecipe(payload: unknown) {
-    // 🚨 SECURITY 1: Auth Wall
     const { userId, restaurantId } = await requireOwnerAuth();
 
-    // 🚨 SECURITY 2: Validation
     const validated = createManualRecipeSchema.safeParse(payload);
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
@@ -313,7 +258,6 @@ export async function createManualRecipe(payload: unknown) {
         const totals = calculateServerRecipeTotals(validData.ingredients, ingredientRefs);
 
         const newRecipe = await prisma.$transaction(async (tx) => {
-            // 🚨 SECURITY 3: Tenant Isolation applied on creation
             const recipe = await tx.recipe.create({
                 data: {
                     restaurant_id: restaurantId,
@@ -340,7 +284,6 @@ export async function createManualRecipe(payload: unknown) {
                 });
             }
 
-            // 👈 FIX: Convert Auth.js string ID to Prisma Int ID
             await tx.auditLog.create({
                 data: {
                     actor_id: Number(userId),
@@ -361,4 +304,17 @@ export async function createManualRecipe(payload: unknown) {
         const errorMessage = error instanceof Error ? error.message : "Failed to create recipe.";
         return { success: false, message: errorMessage };
     }
+}
+
+
+// ───────────────────────────────────────────────────────────────
+// ─── Get Allergens from Database ──────────────────────────────────────
+// ───────────────────────────────────────────────────────────────
+export async function getAllergens() {
+    const ingredients = await prisma.ingredientReference.findMany({
+        select: { allergens: true },
+    });
+    const allAllergens = ingredients.flatMap(ing => ing.allergens);
+    const uniqueAllergens = [...new Set(allAllergens)].sort();
+    return uniqueAllergens;
 }

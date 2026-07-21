@@ -11,6 +11,7 @@ import {
     resolveDraftSchema,
     deleteDraftSchema,
 } from "@/lib/validations/draft-schema";
+import {deleteDraftRateLimiter} from "@/lib/RateLimiter/rate-limiter";
 
 type FinalizedIngredient = {
     resolved_ingredient_id: number | null;
@@ -203,49 +204,75 @@ export async function getDrafts(_mockUser?: unknown) {
 
 // ─── Delete Draft ──────────────────────────────────────────────────────────────
 export async function deleteDraft(arg1: unknown, arg2?: unknown) {
-    // 🚨 SECURITY 1: Auth Wall
+    // 1. Auth Wall
     const { userId, restaurantId } = await requireOwnerAuth();
 
-    // Smart Payload handling
+    // 2. Rate Limiter Check
+    const { success: rateLimitSuccess, reset } = await deleteDraftRateLimiter.limit(String(userId));
+    if (!rateLimitSuccess) {
+        const secondsUntilReset = Math.ceil((reset - Date.now()) / 1000);
+        return {
+            success: false,
+            message: `Too many delete requests. Please wait ${secondsUntilReset}s.`
+        };
+    }
+
+    // 3. Payload Normalization & Validation
     const payload = arg2 !== undefined ? arg2 : arg1;
 
-    // 🚨 SECURITY 2: Validation
-    const validated = deleteDraftSchema.safeParse(payload);
+    // Normalize payload format: accepts { id: 1 }, { ids: [1, 2] }, or raw [1, 2] / 1
+    const rawIds = typeof payload === "object" && payload !== null && "id" in payload
+        ? (payload as { id: unknown }).id
+        : typeof payload === "object" && payload !== null && "ids" in payload
+            ? (payload as { ids: unknown }).ids
+            : payload;
+
+    const validated = deleteDraftSchema.safeParse({ ids: rawIds });
     if (!validated.success) {
         return { success: false, message: validated.error.issues[0].message };
     }
 
-    const { id } = validated.data;
+    const draftIds = validated.data.ids;
+
+    if (draftIds.length === 0) {
+        return { success: false, message: "No draft IDs provided." };
+    }
 
     try {
         await prisma.$transaction(async (tx) => {
-            // 🚨 SECURITY 3: Tenant Isolation
+            // 4. Tenant Isolation Bulk Delete
             const result = await tx.recipeDraft.deleteMany({
                 where: {
-                    id: id,
+                    id: { in: draftIds },
                     restaurant_id: restaurantId
                 }
             });
 
             if (result.count === 0) {
-                throw new Error("Draft not found or access denied.");
+                throw new Error("No matching drafts found or access denied.");
             }
 
+            // 5. Bulk Audit Log
             await tx.auditLog.create({
                 data: {
                     actor_id: Number(userId),
                     restaurant_id: restaurantId,
                     action: "DRAFT_DELETED",
-                    payload: { draft_id: id },
+                    payload: { draft_ids: draftIds, deleted_count: result.count },
                 }
             });
         });
 
         revalidatePath("/owner/drafts");
-        return { success: true, message: "Draft deleted." };
+        return {
+            success: true,
+            message: draftIds.length === 1
+                ? "Draft deleted."
+                : `${draftIds.length} drafts deleted successfully.`
+        };
     } catch (error: unknown) {
         console.error("❌ Delete draft error:", error);
-        const errorMessage = error instanceof Error ? error.message : "Failed to delete draft.";
+        const errorMessage = error instanceof Error ? error.message : "Failed to delete draft(s).";
         return { success: false, message: errorMessage };
     }
 }

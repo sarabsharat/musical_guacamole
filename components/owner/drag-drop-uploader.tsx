@@ -157,10 +157,11 @@ export function DragDropUploader({
             const errMsg = isNetworkError
                 ? "Network error. Check your connection and try again."
                 : err instanceof Error
-                    ? err.message
+                    ? err.message // 🚨 This extracts "Upload limit exceeded. Try again in 58 seconds." from MediaActions
                     : "Upload failed.";
+
             setError(errMsg);
-            onUploadError(errMsg);
+            onUploadError(errMsg); // 🚨 This notifies SubmitRecipeForm, which triggers toast.error(err)
             setUploadState("error");
             setPreview(null);
         }

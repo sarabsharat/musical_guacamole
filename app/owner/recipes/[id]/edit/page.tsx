@@ -1,10 +1,9 @@
-// src/app/owner/recipes/[id]/edit/page.tsx
 import React from "react";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { serializePrisma } from "@/lib/serialize";
 import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
+import { getRecipeDetails } from "@/actions/RecipesActions";
 import { RecipeEditForm } from "@/components/owner/recipe-edit-form";
+import { prisma } from "@/lib/prisma";
 
 interface PageProps {
     params: Promise<{
@@ -13,8 +12,8 @@ interface PageProps {
 }
 
 export default async function RecipeEditPage({ params }: PageProps) {
-    // 1. 🚨 SECURITY: Auth Wall
-    const { userId, restaurantId } = await requireOwnerAuth();
+    // 1. Auth (still needed for the action, but we also need restaurantId for the form)
+    const { restaurantId } = await requireOwnerAuth();
 
     const { id } = await params;
     const recipeId = parseInt(id, 10);
@@ -23,45 +22,22 @@ export default async function RecipeEditPage({ params }: PageProps) {
         return notFound();
     }
 
-    // 2. Query Recipe with strict tenant isolation
-    const recipe = await prisma.recipe.findFirst({
-        where: {
-            id: recipeId,
-            restaurant_id: restaurantId, // 👈 Ensures they own this recipe
-        },
-        include: {
-            ingredients: {
-                include: {
-                    ingredient_item: true,
-                },
-            },
-        },
-    });
-
-    if (!recipe) {
+    // 2. Use the server action to fetch recipe details (with security and serialization)
+    const result = await getRecipeDetails(recipeId);
+    if (!result.success || !result.data) {
         return notFound();
     }
 
-    // 3. Fetch reference ingredient library
-    // 🚨 BUG FIX: Removed the `where: {id: restaurantId}` constraint here.
-    // Ingredient references are global for the whole platform, so we want all of them!
+    // 3. Fetch ingredient references (global)
     const references = await prisma.ingredientReference.findMany({
         orderBy: { name: "asc" }
     });
 
-    // 4. Serialize database objects
-    const serializedRecipe = serializePrisma(recipe);
-    const serializedReferences = serializePrisma(references);
-
-    // 5. Reconstruct the mock user for your existing Client Component
-    const mockUser = { id: userId, restaurantId, role: "restaurant_owner" } as any;
-
     return (
-        <div className="min-h-screen bg-neutral-100 p-8 text-black">
+        <div className="flex flex-col gap-6 px-4 lg:px-6 py-4">
             <RecipeEditForm
-                currentUser={mockUser}
-                recipe={serializedRecipe}
-                references={serializedReferences}
+                recipe={result.data}
+                references={references}
             />
         </div>
     );

@@ -7,6 +7,7 @@ import { serializePrisma } from "@/lib/serialize";
 import { DraftResolutionForm } from "@/components/owner/draft-resolution-form";
 import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
 import { ArrowLeft } from "lucide-react";
+import {DeleteDraftButton} from "@/components/owner/delete-draft-button";
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -44,13 +45,17 @@ export default async function DraftResolutionPage({ params }: PageProps) {
                             Draft ID #{draftId} • {new Date(draftData.created_at).toLocaleDateString()}
                         </p>
                     </div>
-                    <Link
-                        href="/owner/drafts"
-                        className="inline-flex items-center gap-2 text-primary hover:underline font-medium text-base"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back to Queue
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <Link
+                            href="/owner/drafts"
+                            className="inline-flex items-center gap-2 text-primary hover:underline font-medium text-base"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                            Back to Queue
+                        </Link>
+
+                        <DeleteDraftButton draftId={draftId} redirectToQueue={true} />
+                    </div>
                 </header>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

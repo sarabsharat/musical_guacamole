@@ -95,7 +95,7 @@ export function Header({ role, tenant, title, user, notifications = [], readIds 
     const showBadges = role === Role.restaurant_owner && !!tenant;
 
     // ─── User avatar trigger ──────────────────────────────────────
-    const userAvatar = user?.image || "/avatars/default.jpg";
+    const userAvatar = user?.image || "/avatars/dark.png";
     const userInitials = user?.name
         ? user.name
             .split(" ")

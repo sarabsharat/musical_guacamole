@@ -6,22 +6,22 @@ import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { updateRecipe } from "@/actions/RecipesActions";
 import Link from "next/link";
-import { generateSafeId, IngredientMapperGrid, LiveMacroPreviewCard, useIngredientMapper } from "@/lib/utils/recipe-form";
+import { generateSafeId, LiveMacroPreviewCard, useIngredientMapper } from "@/lib/utils/recipe-form";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { IngredientMapperGrid } from "@/components/owner/ingredients-mapper-grid";
 
 interface RecipeEditFormProps {
-    currentUser: unknown;
     recipe: Recipe;
     references: IngredientReference[];
 }
 
-export function RecipeEditForm({ currentUser, recipe, references }: RecipeEditFormProps) {
+export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
     const router = useRouter();
     const [mealName, setMealName] = useState(recipe.meal_name);
     const [preparationNotes, setPreparationNotes] = useState(recipe.preparation_notes);
@@ -65,7 +65,8 @@ export function RecipeEditForm({ currentUser, recipe, references }: RecipeEditFo
             })),
         };
 
-        const res = await updateRecipe(currentUser, recipe.id, payload);
+        // ❌ No fake user passed – the action will handle auth
+        const res = await updateRecipe(recipe.id, payload);
         setLoading(false);
 
         if (res.success) {
@@ -75,80 +76,78 @@ export function RecipeEditForm({ currentUser, recipe, references }: RecipeEditFo
         }
     };
 
+    // ─── Render ──────────────────────────────────────────────────────
     return (
-        <form onSubmit={handleSubmit} className="min-h-screen bg-background space-y-8 p-4 md:p-8">
-            <div className="mx-auto max-w-5xl space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 px-4 lg:px-6 py-4">
+            <div className="mx-auto w-full max-w-6xl space-y-6">
                 {/* Breadcrumb & Header */}
                 <div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                        <Link href={`/owner/recipes/${recipe.id}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                        <Link
+                            href={`/owner/recipes/${recipe.id}`}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
                             <ArrowLeft className="h-4 w-4" />
                             Back
                         </Link>
                         <span>/</span>
                         <span>Edit Recipe</span>
                     </div>
-                    <h1 className="text-4xl font-black tracking-tight">Edit Recipe</h1>
-                    <p className="mt-2 text-muted-foreground">{recipe.meal_name}</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Edit Recipe</h1>
+                    <p className="text-muted-foreground mt-1">{recipe.meal_name}</p>
                 </div>
 
-                {/* Main Content Grid */}
+                {error && (
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Error</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left Sidebar - Info & Preview */}
+                    {/* Left sidebar */}
                     <div className="lg:col-span-1 space-y-6">
-                        {/* Warning Alert */}
-                        <Alert variant="destructive" className="border-amber-200 bg-amber-50 text-amber-900">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
-                            <AlertTitle>Heads Up</AlertTitle>
-                            <AlertDescription>
-                                Your changes will be submitted for re-verification with our audit team.
-                            </AlertDescription>
-                        </Alert>
-
-                        {/* Macro Preview */}
-                        <LiveMacroPreviewCard preview={livePreview} />
-
-                        {/* Current Recipe Info */}
-                        <Card>
+                        <Card className="border-border">
                             <CardHeader>
-                                <CardTitle className="text-base">Recipe Information</CardTitle>
+                                <CardTitle className="text-base font-semibold">Recipe Information</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3 text-sm">
                                 <div>
-                                    <p className="text-xs text-muted-foreground font-semibold uppercase">Created</p>
+                                    <p className="text-xs font-bold uppercase text-muted-foreground">Created</p>
                                     <p className="mt-1">{new Date(recipe.created_at).toLocaleDateString()}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground font-semibold uppercase">Status</p>
+                                    <p className="text-xs font-bold uppercase text-muted-foreground">Status</p>
                                     <p className="mt-1 capitalize">{recipe.status || "Unknown"}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground font-semibold uppercase">Ingredients</p>
+                                    <p className="text-xs font-bold uppercase text-muted-foreground">Ingredients</p>
                                     <p className="mt-1">{rows.length} items</p>
                                 </div>
                             </CardContent>
                         </Card>
+
+                        <LiveMacroPreviewCard preview={livePreview} />
+
+                        <Alert className="border-accent/30 bg-accent/10 text-foreground">
+                            <AlertCircle className="h-4 w-4 text-accent" />
+                            <AlertTitle className="text-sm font-semibold">Before you save</AlertTitle>
+                            <AlertDescription className="text-xs text-muted-foreground">
+                                Changes will be submitted for re‑verification by our audit team.
+                            </AlertDescription>
+                        </Alert>
                     </div>
 
-                    {/* Right Content - Form */}
+                    {/* Right side – form */}
                     <div className="lg:col-span-2 space-y-6">
-                        {/* Error Alert */}
-                        {error && (
-                            <Alert variant="destructive">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Error</AlertTitle>
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-
-                        {/* Recipe Details Card */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-base">Recipe Details</CardTitle>
+                                <CardTitle className="text-base font-semibold">Recipe Details</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="meal-name" className="font-semibold">
+                                    <Label htmlFor="meal-name" className="text-sm font-semibold">
                                         Meal Name
                                     </Label>
                                     <Input
@@ -160,9 +159,8 @@ export function RecipeEditForm({ currentUser, recipe, references }: RecipeEditFo
                                         required
                                     />
                                 </div>
-
                                 <div className="space-y-2">
-                                    <Label htmlFor="prep-notes" className="font-semibold">
+                                    <Label htmlFor="prep-notes" className="text-sm font-semibold">
                                         Preparation Notes
                                     </Label>
                                     <Textarea
@@ -176,10 +174,9 @@ export function RecipeEditForm({ currentUser, recipe, references }: RecipeEditFo
                             </CardContent>
                         </Card>
 
-                        {/* Ingredients Card */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-base">Ingredients</CardTitle>
+                                <CardTitle className="text-base font-semibold">Ingredients</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <IngredientMapperGrid
@@ -192,27 +189,18 @@ export function RecipeEditForm({ currentUser, recipe, references }: RecipeEditFo
                             </CardContent>
                         </Card>
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-3 border-t pt-6">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="lg"
-                                onClick={() => router.back()}
-                                disabled={loading}
-                                className="uppercase font-semibold"
-                            >
-                                Cancel
-                            </Button>
+                        <div className="flex flex-col sm:flex-row gap-3 border-t border-border pt-6">
+                            <Link href="/owner/dashboard">
+                                <Button variant="outline">Cancel</Button>
+                            </Link>
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                size="lg"
-                                className="flex-1 uppercase font-semibold"
+                                className="w-full sm:flex-1 uppercase font-semibold gap-2"
                             >
                                 {loading ? (
                                     <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                         Saving...
                                     </>
                                 ) : (

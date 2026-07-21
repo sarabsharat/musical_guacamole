@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { toast } from "sonner"; // 🚨 Import Sonner
 
 interface SubmitRecipeFormProps {
     currentUser: unknown;
@@ -56,25 +57,27 @@ export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFo
         setLoading(false);
 
         if (result.success) {
-            setStatusMessage({
-                type: "success",
-                text: "✓ Recipe submitted! Our AI is analyzing your ingredients now.",
-            });
+            // 🚨 1. Use Sonner for success!
+            toast.success("Recipe submitted! Our AI is analyzing your ingredients now.");
+
             setRawText("");
             setImageUrl("");
             setUploaderKey((k) => k + 1);
 
-            // Redirect after success
             setTimeout(() => {
                 router.push("/owner/drafts");
             }, 2000);
         } else {
+            // 🚨 2. Use Sonner for Draft/AI Rate Limits!
+            toast.error(result.message || "Failed to submit recipe.");
+
+            // Optional: Keep this if you STILL want the inline red box to show up too
             setStatusMessage({
                 type: "error",
                 text: result.message || "Failed to submit recipe. Please try again.",
             });
         }
-    };
+    }
 
     return (
         // components/owner/SubmitRecipeForm.tsx – updated JSX
@@ -99,7 +102,7 @@ export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFo
             {/* Info Card */}
             <Card className="border-accent/20 bg-accent/5">
                 <CardContent className="pt-6 flex gap-3">
-                    <Sparkles className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+                    <Sparkles className="h-5 w-5 text-carbs flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-foreground/80">
                         <p className="font-semibold text-foreground">AI-Powered Ingredient Extraction</p>
                         <p className="mt-1 opacity-80">
@@ -191,9 +194,11 @@ export default function SubmitRecipeForm({ currentUser, tenant }: SubmitRecipeFo
                             setImageUploading(false);
                             setImageUrl(url);
                             setStatusMessage(null);
+                            toast.success("Image uploaded successfully!");
                         }}
                         onUploadError={(err) => {
                             setImageUploading(false);
+                            toast.error(err);
                             setStatusMessage({ type: "error", text: err });
                         }}
                     />

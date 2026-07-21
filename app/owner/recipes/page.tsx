@@ -1,7 +1,6 @@
-import { prisma } from "@/lib/prisma";
 import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
+import { getOwnerRecipes, getAllergens } from "@/actions/RecipesActions";
 import { RecipeFilters } from "@/components/owner/recipe-filters";
-import { serializePrisma } from "@/lib/serialize";
 import { RecipeStatus } from "@prisma/client";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,32 +9,46 @@ import { RecipesList } from "@/components/owner/recipes-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface PageProps {
-    searchParams: Promise<{ page?: string; search?: string; status?: string }>;
+    searchParams: Promise<{ page?: string; search?: string; status?: string; allergens?: string; calMin?: string; calMax?: string }>;
 }
 
 export default async function RecipesPage({ searchParams }: PageProps) {
-    const { restaurantId } = await requireOwnerAuth();
+    await requireOwnerAuth();
+
     const params = await searchParams;
     const page = parseInt(params.page || "1", 10);
-    const pageSize = 10;
-    const skip = (page - 1) * pageSize;
     const search = params.search || "";
     const status = params.status as RecipeStatus | undefined;
+    const allergens = params.allergens ? params.allergens.split(",") : undefined;
+    const calMin = params.calMin ? parseInt(params.calMin) : undefined;
+    const calMax = params.calMax ? parseInt(params.calMax) : undefined;
 
-    const where: any = { restaurant_id: restaurantId };
-    if (search) where.meal_name = { contains: search, mode: "insensitive" };
-    if (status) where.status = status;
+    // Fetch all allergens for the filter dropdown
+    const allAllergens = await getAllergens();
 
-    const [recipes, totalCount] = await Promise.all([
-        prisma.recipe.findMany({ where, orderBy: { id: "desc" }, skip, take: pageSize }),
-        prisma.recipe.count({ where }),
-    ]);
+    const result = await getOwnerRecipes({
+        page,
+        limit: 10,
+        search,
+        status,
+        allergens,
+        calMin,
+        calMax,
+    });
 
-    const totalPages = Math.ceil(totalCount / pageSize);
+    if (!result.success) {
+        return (
+            <div className="flex flex-col gap-6 px-4 lg:px-6 py-4">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">All Recipes</h1>
+                <p className="text-destructive">Failed to load recipes. Please try again later.</p>
+            </div>
+        );
+    }
+
+    const { recipes, totalCount, totalPages } = result.data;
 
     return (
         <div className="flex flex-col gap-6 px-4 lg:px-6 py-4">
-            {/* ─── Header ─────────────────────────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">All Recipes</h1>
@@ -51,17 +64,22 @@ export default async function RecipesPage({ searchParams }: PageProps) {
                 </Link>
             </div>
 
-            {/* ─── Filter Bar ────────────────────────────────────────── */}
-            <RecipeFilters currentStatus={status} currentSearch={search} />
+            <RecipeFilters
+                currentStatus={status}
+                currentSearch={search}
+                currentAllergens={allergens || []}
+                currentCaloriesMin={calMin}
+                currentCaloriesMax={calMax}
+                allAllergens={allAllergens}
+            />
 
-            {/* ─── Recipes List (wrapped in a Card) ────────────────── */}
             <Card className="border-border">
                 <CardHeader>
                     <CardTitle>Recipes</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <RecipesList
-                        recipes={serializePrisma(recipes)}
+                        recipes={recipes}
                         currentPage={page}
                         totalPages={totalPages}
                     />

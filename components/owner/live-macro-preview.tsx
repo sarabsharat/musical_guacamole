@@ -1,43 +1,9 @@
-// lib/utils/recipe-form.ts
+// components/owner/live-macro-preview-card.tsx
 "use client";
 
-import { useState, useMemo } from "react";
-import { IngredientReference } from "@prisma/client";
-import { IngredientRow } from "@/lib/shared-types";
-import { calculatePreview, LivePreview } from "@/lib/utils/recipe-utils";
+import React from "react";
+import { LivePreview } from "@/lib/utils/recipe-utils";
 
-export const generateSafeId = () => Math.random().toString(36).substring(2, 11);
-
-export function useIngredientMapper(initialRows: IngredientRow[], references: IngredientReference[]) {
-    const [rows, setRows] = useState<IngredientRow[]>(initialRows);
-
-    const updateRowField = (keyId: string, field: keyof IngredientRow, value: string | number) => {
-        setRows((prev) => prev.map((row) => (row.keyId === keyId ? { ...row, [field]: value } : row)));
-    };
-
-    const removeRow = (keyId: string) => {
-        setRows((prev) => prev.filter((row) => row.keyId !== keyId));
-    };
-
-    const addManualRow = () => {
-        setRows((prev) => [
-            ...prev,
-            {
-                keyId: generateSafeId(),
-                rawText: "Manual Ingredient Addition",
-                userStatedAmount: "50g",
-                normalizedGrams: 50,
-                selectedIngredientId: references[0]?.id || 0,
-            },
-        ]);
-    };
-
-    const livePreview = useMemo(() => calculatePreview(rows, references), [rows, references]);
-
-    return { rows, setRows, updateRowField, removeRow, addManualRow, livePreview };
-}
-
-// ─── LiveMacroPreviewCard component ──────────────────────────────
 export function LiveMacroPreviewCard({ preview }: { preview: LivePreview }) {
     return (
         <div className="bg-card border border-border rounded-xl p-6 shadow-sm">

@@ -61,3 +61,13 @@ export interface RecipeSnapshot {
         weight_g?: string | number;
     }>;
 }
+
+export interface FetchRecipesQuery {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: RecipeStatus;
+    allergens?: string[];
+    calMin?: number;
+    calMax?: number;
+}

@@ -4,7 +4,9 @@
 import { auth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { z } from "zod";
-import { getPresignedUploadUrl } from "@/lib/s3-service"; // adjust import if needed
+import { getPresignedUploadUrl } from "@/lib/s3-service";
+import {uploadRateLimiter} from "@/lib/RateLimiter/rate-limiter";
+// 🚨 1. Import limiter
 
 const uploadSchema = z.object({
     fileName: z.string().min(1),
@@ -14,18 +16,33 @@ const uploadSchema = z.object({
 
 export async function getSecureUploadUrl(_mockUser: unknown, input: z.infer<typeof uploadSchema>) {
     try {
-        // 1. Authenticate without redirect
+        // 1. Authenticate
         const session = await auth();
         if (!session?.user) {
             return { success: false, message: "You must be logged in." };
         }
 
-        // 2. Only restaurant owners can upload (other roles may be added later)
+        // 2. Role Check
         if (session.user.role !== Role.restaurant_owner) {
             return { success: false, message: "Only restaurant owners can upload images." };
         }
 
-        // 3. Validate input
+        const userId = session.user.id ? String(session.user.id) : "anonymous";
+
+        // 🚨 3. CHECK RATE LIMITER
+        const { success: rateLimitSuccess, remaining, reset } = await uploadRateLimiter.limit(userId);
+
+        console.log("🔍 [Rate Limiter Debug]:", { userId, rateLimitSuccess, remaining });
+
+        if (!rateLimitSuccess) {
+            const secondsUntilReset = Math.ceil((reset - Date.now()) / 1000);
+            return {
+                success: false,
+                message: `Upload limit exceeded. Try again in ${secondsUntilReset} seconds.`
+            };
+        }
+
+        // 4. Validate input
         const validated = uploadSchema.safeParse(input);
         if (!validated.success) {
             return { success: false, message: validated.error.issues[0]?.message };
@@ -33,14 +50,13 @@ export async function getSecureUploadUrl(_mockUser: unknown, input: z.infer<type
 
         const { fileName, fileType, fileSize } = validated.data;
 
-        // 4. Generate a unique file key (you can include user ID even if restaurantId is null)
-        const userId = parseInt(session.user.id, 10);
+        // 5. Generate file key
+        const parsedUserId = parseInt(session.user.id, 10);
         const timestamp = Date.now();
         const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const fileKey = `uploads/${userId}/${timestamp}-${sanitizedFileName}`;
+        const fileKey = `uploads/${parsedUserId}/${timestamp}-${sanitizedFileName}`;
 
-        // 5. Get presigned URL from your S3/MinIO service
-        //    This function should return { uploadUrl, fileKey } or throw an error
+        // 6. Get presigned URL
         const result = await getPresignedUploadUrl({
             fileKey,
             fileType,

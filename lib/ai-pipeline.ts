@@ -43,7 +43,7 @@ async function callGeminiVisualExtraction(text: string, imageUrl: string): Promi
     const mimeType = response.headers.get("content-type") || "image/jpeg";
 
     const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
     });
 
@@ -69,8 +69,11 @@ async function callGeminiVisualExtraction(text: string, imageUrl: string): Promi
             { inlineData: { mimeType, data: base64Image } }
         ]);
         return JSON.parse(result.response.text()) as ExtractedIngredientDraft[];
-    } catch (error) {
-        console.error("AI Visual Extraction Failed:", error);
-        return []; // Return empty array if it completely fails so the app doesn't crash
+    } catch (error: any) {
+        // 🚨 Gracefully catch the Gemini 429 quota error
+        if (error?.status === 429 || error?.message?.includes("prepayment credits")) {
+            throw new Error("AI service quota reached. Please check your Gemini API Studio billing or try again in a few minutes.");
+        }
+        throw error;
     }
 }
