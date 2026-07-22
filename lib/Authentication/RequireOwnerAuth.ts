@@ -1,3 +1,4 @@
+// src/lib/Authentication/RequireOwnerAuth.ts
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth";
 
@@ -16,13 +17,15 @@ export async function requireOwnerAuth() {
 
     // 3. Ensure they have a linked restaurant ID
     if (!session.restaurantId) {
-        redirect("/onboarding");
+        redirect("/onboarding/owner");
     }
 
-    // Return the safe, validated data for Prisma to use
+    // Return the safe, validated data AND the full user object for the UI
     return {
+        user: session,
         userId: session.id,
         restaurantId: session.restaurantId,
         slug: session.slug,
+        image_url: session.image_url || null, // 🚨 Added image_url here
     };
 }

@@ -3,7 +3,7 @@
 import { IngredientReference } from "@prisma/client";
 import { Recipe, RecipeIngredient, UpdateRecipePayload } from "@/lib/shared-types";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { updateRecipe } from "@/actions/RecipesActions";
 import Link from "next/link";
 import { generateSafeId, LiveMacroPreviewCard, useIngredientMapper } from "@/lib/utils/recipe-form";
@@ -13,15 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
-import { IngredientMapperGrid } from "@/components/owner/ingredients-mapper-grid";
+import { AlertCircle, ArrowLeft, Loader2, MessageSquareWarning } from "lucide-react";
+import {IngredientMapperGrid} from "@/components/owner/ingredients-mapper-grid";
 
 interface RecipeEditFormProps {
     recipe: Recipe;
     references: IngredientReference[];
+    hasPendingClarifications?: boolean;
 }
 
-export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
+export function RecipeEditForm({ recipe, references, hasPendingClarifications = false }: RecipeEditFormProps) {
     const router = useRouter();
     const [mealName, setMealName] = useState(recipe.meal_name);
     const [preparationNotes, setPreparationNotes] = useState(recipe.preparation_notes);
@@ -38,6 +39,27 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
 
     const { rows, updateRowField, removeRow, addManualRow, livePreview } = useIngredientMapper(initialRows, references);
 
+    // ─── Check if ingredients changed ───────────────────────────────
+    const ingredientsChanged = useMemo(() => {
+        if (initialRows.length !== rows.length) return true;
+        for (let i = 0; i < initialRows.length; i++) {
+            const a = initialRows[i];
+            const b = rows[i];
+            if (
+                a.rawText !== b.rawText ||
+                a.selectedIngredientId !== b.selectedIngredientId ||
+                a.userStatedAmount !== b.userStatedAmount ||
+                a.normalizedGrams !== b.normalizedGrams
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }, [initialRows, rows]);
+
+    // ─── Determine if submit should be disabled ──────────────────────
+    const isSubmitDisabled = loading || (hasPendingClarifications && !ingredientsChanged);
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError(null);
@@ -49,6 +71,12 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
 
         if (rows.length === 0) {
             setError("Please add at least one ingredient.");
+            return;
+        }
+
+        // Additional guard: if there are pending clarifications and no ingredient changes, block.
+        if (hasPendingClarifications && !ingredientsChanged) {
+            setError("You must modify the ingredients to resubmit this recipe.");
             return;
         }
 
@@ -65,7 +93,6 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
             })),
         };
 
-        // ❌ No fake user passed – the action will handle auth
         const res = await updateRecipe(recipe.id, payload);
         setLoading(false);
 
@@ -76,7 +103,6 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
         }
     };
 
-    // ─── Render ──────────────────────────────────────────────────────
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-6 px-4 lg:px-6 py-4">
             <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -97,6 +123,19 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
                     <p className="text-muted-foreground mt-1">{recipe.meal_name}</p>
                 </div>
 
+                {/* ─── Pending Clarifications Alert ───────────────────── */}
+                {hasPendingClarifications && (
+                    <Alert className="border-carbs/30 bg-carbs/10 text-foreground">
+                        <MessageSquareWarning className="h-4 w-4 text-carbs" />
+                        <AlertTitle className="text-sm font-semibold">Pending Clarifications</AlertTitle>
+                        <AlertDescription className="text-xs text-muted-foreground">
+                            {ingredientsChanged
+                                ? "You have changed the ingredients. You can now resubmit this recipe."
+                                : "You must modify the ingredients to resubmit this recipe and clear the clarifications."}
+                        </AlertDescription>
+                    </Alert>
+                )}
+
                 {error && (
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
@@ -105,6 +144,7 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
                     </Alert>
                 )}
 
+                {/* Main Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left sidebar */}
                     <div className="lg:col-span-1 space-y-6">
@@ -190,12 +230,18 @@ export function RecipeEditForm({ recipe, references }: RecipeEditFormProps) {
                         </Card>
 
                         <div className="flex flex-col sm:flex-row gap-3 border-t border-border pt-6">
-                            <Link href="/owner/dashboard">
-                                <Button variant="outline">Cancel</Button>
-                            </Link>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => router.back()}
+                                disabled={loading}
+                                className="w-full sm:w-auto uppercase font-semibold"
+                            >
+                                Cancel
+                            </Button>
                             <Button
                                 type="submit"
-                                disabled={loading}
+                                disabled={isSubmitDisabled}
                                 className="w-full sm:flex-1 uppercase font-semibold gap-2"
                             >
                                 {loading ? (

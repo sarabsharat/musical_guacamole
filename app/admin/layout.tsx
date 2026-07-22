@@ -1,4 +1,4 @@
-// src/app/admin/layout.tsx
+// src/app/admin/page.tsx
 import React from "react";
 import { requireAdminAuth } from "@/lib/Authentication/RequireAdminAuth";
 import { Header } from "@/components/shared/Header";

@@ -1,3 +1,4 @@
+// components/owner/recipe-filters.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -174,7 +175,7 @@ export function RecipeFilters({
                                 </TooltipContent>
                             </Tooltip>
                         </Label>
-                        <Select value={status} onValueChange={(val) => setStatus(val)}>
+                        <Select value={status} onValueChange={(value) => setStatus(value || "ALL")}>
                             <SelectTrigger id="status-filter" className="h-9 bg-background text-sm w-full">
                                 <SelectValue placeholder="All" />
                             </SelectTrigger>
@@ -222,22 +223,23 @@ export function RecipeFilters({
                             </Tooltip>
                         </Label>
                         <Popover open={allergenPopoverOpen} onOpenChange={setAllergenPopoverOpen}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={allergenPopoverOpen}
-                                    className="h-9 w-full justify-between bg-background text-sm font-normal px-3"
+                            <PopoverTrigger>
+                                <div
+                                    className={cn(
+                                        "flex h-9 w-full cursor-pointer items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground",
+                                        "min-w-32.5"
+                                    )}
+                                    onClick={() => setAllergenPopoverOpen(!allergenPopoverOpen)}
                                 >
-                                    <span className="truncate">
-                                        {selectedAllergens.length === 0
-                                            ? "Select..."
-                                            : `${selectedAllergens.length} selected`}
-                                    </span>
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
+            <span className="truncate">
+                {selectedAllergens.length === 0
+                    ? "Allergens"
+                    : `${selectedAllergens.length} selected`}
+            </span>
+                                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                                </div>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[200px] p-0">
+                            <PopoverContent className="w-50 p-0">
                                 <Command>
                                     <CommandInput placeholder="Search allergens..." />
                                     <CommandEmpty>No allergen found.</CommandEmpty>
@@ -279,7 +281,7 @@ export function RecipeFilters({
                             </Tooltip>
                         </Label>
                         <Popover open={calPopoverOpen} onOpenChange={setCalPopoverOpen}>
-                            <PopoverTrigger asChild>
+                            <PopoverTrigger>
                                 <Button
                                     variant="outline"
                                     className="h-9 w-full justify-between bg-background text-sm font-normal px-3"
@@ -295,7 +297,7 @@ export function RecipeFilters({
                                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[280px] p-4" align="start">
+                            <PopoverContent className="w-70 p-4" align="start">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <div className="flex-1 space-y-1">

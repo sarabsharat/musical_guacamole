@@ -20,13 +20,13 @@ import {
     AttachmentTitle,
 } from "@/components/ui/attachment";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface UploaderProps {
     onUploadSuccess: (url: string) => void;
     onUploadError: (err: string) => void;
     onUploadStart?: () => void;
+    context?: "onboarding" | "general"; // 👈 new prop
     className?: string;
 }
 
@@ -37,6 +37,7 @@ export function DragDropUploader({
                                      onUploadSuccess,
                                      onUploadError,
                                      onUploadStart,
+                                     context = "general",
                                      className,
                                  }: UploaderProps) {
     const [dragActive, setDragActive] = useState(false);
@@ -115,10 +116,12 @@ export function DragDropUploader({
         onUploadStart?.();
 
         try {
-            const response = await getSecureUploadUrl(undefined, {
+            // 👇 Pass the context
+            const response = await getSecureUploadUrl({
                 fileName: file.name,
                 fileType: file.type,
                 fileSize: file.size,
+                context,
             });
 
             if (!response.success || !response.uploadUrl || !response.fileKey) {
@@ -157,11 +160,11 @@ export function DragDropUploader({
             const errMsg = isNetworkError
                 ? "Network error. Check your connection and try again."
                 : err instanceof Error
-                    ? err.message // 🚨 This extracts "Upload limit exceeded. Try again in 58 seconds." from MediaActions
+                    ? err.message
                     : "Upload failed.";
 
             setError(errMsg);
-            onUploadError(errMsg); // 🚨 This notifies SubmitRecipeForm, which triggers toast.error(err)
+            onUploadError(errMsg);
             setUploadState("error");
             setPreview(null);
         }
@@ -199,7 +202,6 @@ export function DragDropUploader({
         }
     };
 
-    // Format file size
     const formatFileSize = (bytes: number) => {
         if (bytes === 0) return "0 Bytes";
         const k = 1024;
@@ -208,7 +210,6 @@ export function DragDropUploader({
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
     };
 
-    // Determine state for Attachment
     const attachmentState = uploadState === "idle" ? "done" : uploadState;
 
     return (
@@ -221,7 +222,6 @@ export function DragDropUploader({
                 className="hidden"
             />
 
-            {/* Error Alert */}
             {error && uploadState === "error" && (
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -229,9 +229,7 @@ export function DragDropUploader({
                 </Alert>
             )}
 
-            {/* Upload Area */}
             {uploadState === "idle" ? (
-                // Dropzone empty state – styled like shadcn
                 <div
                     onDragEnter={handleDrag}
                     onDragOver={handleDrag}
@@ -260,7 +258,6 @@ export function DragDropUploader({
                     </div>
                 </div>
             ) : (
-                // Preview using shadcn Attachment components
                 <Attachment
                     state={attachmentState}
                     size="default"
@@ -303,8 +300,6 @@ export function DragDropUploader({
                                 aria-label="Retry upload"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    // Re‑trigger upload with the same file? We need to store the file object.
-                                    // For simplicity, we clear and let user re‑select.
                                     handleClear();
                                     triggerInput();
                                 }}

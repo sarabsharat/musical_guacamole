@@ -11,7 +11,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, ChefHat, Info, Activity } from "lucide-react";
+import { ArrowLeft, Edit, ChefHat, Info, Activity, MessageSquareWarning } from "lucide-react";
+import {getRecipeClarifications} from "@/actions/RecipesActions";
 
 interface PageProps {
     params: Promise<{
@@ -49,6 +50,9 @@ export default async function RecipeDetailPage({ params }: PageProps) {
     if (!recipe) {
         return notFound();
     }
+
+    // 4. Fetch clarifications for this recipe
+    const clarifications = await getRecipeClarifications(recipeId);
 
     return (
         <div className="container mx-auto px-4 md:px-8 py-6 space-y-6 bg-background">
@@ -131,7 +135,7 @@ export default async function RecipeDetailPage({ params }: PageProps) {
                     </Card>
                 </div>
 
-                {/* Right Column: Macros & Ingredients Grid */}
+                {/* Right Column: Macros, Clarifications, & Ingredients */}
                 <div className="md:col-span-2 space-y-6">
                     {/* Macro Overview */}
                     <Card>
@@ -162,6 +166,31 @@ export default async function RecipeDetailPage({ params }: PageProps) {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* ─── Clarifications Card ────────────────────────── */}
+                    {clarifications.length > 0 && (
+                        <Card className="border-carbs/30 bg-carbs/10">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-carbs-foreground">
+                                    <MessageSquareWarning className="h-5 w-5" />
+                                    Clarifications Requested
+                                </CardTitle>
+                                <CardDescription>
+                                    Your auditor has requested additional information.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {clarifications.map((c) => (
+                                    <div key={c.id} className="border-b border-carbs/20 pb-2 last:border-0">
+                                        <p className="text-sm text-foreground">{c.message}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Requested by {c.requestedBy} on {new Date(c.requestedAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Ingredients Table */}
                     <Card>

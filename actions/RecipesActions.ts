@@ -318,3 +318,40 @@ export async function getAllergens() {
     const uniqueAllergens = [...new Set(allAllergens)].sort();
     return uniqueAllergens;
 }
+
+// ───────────────────────────────────────────────────────────────
+// ─── Get Recipe Clarification ──────────────────────────────────────
+// ───────────────────────────────────────────────────────────────
+export async function getRecipeClarifications(recipeId: number) {
+    const { restaurantId } = await requireOwnerAuth();
+
+    const recipe = await prisma.recipe.findFirst({
+        where: { id: recipeId, restaurant_id: restaurantId },
+        select: { id: true },
+    });
+    if (!recipe) return [];
+
+    const logs = await prisma.auditLog.findMany({
+        where: {
+            recipe_id: recipeId,
+            action: "CLARIFICATION_REQUESTED",
+        },
+        select: {
+            id: true,
+            created_at: true,
+            payload: true,
+            actor: { select: { full_name: true } },
+        },
+        orderBy: { created_at: "desc" },
+    });
+
+    return logs.map((log) => {
+        const payload = log.payload as { message?: string };
+        return {
+            id: log.id,
+            message: payload.message || "No details provided.",
+            requestedBy: log.actor.full_name || "Auditor",
+            requestedAt: log.created_at,
+        };
+    });
+}

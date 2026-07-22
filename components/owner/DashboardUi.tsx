@@ -1,3 +1,4 @@
+// components/owner/dashboard-ui.tsx
 "use client";
 
 import React from "react";
@@ -9,9 +10,9 @@ import {
     CheckCircle,
     AlertOctagon,
     Clock,
-    ArrowRight,
 } from "lucide-react";
-import {StatusBadge} from "@/components/shared/status-badge";
+import {RecipesList} from "@/components/owner/recipes-list";
+
 
 interface DashboardData {
     totalRecipes: number;
@@ -130,36 +131,12 @@ export function DashboardUi({ data }: { data: DashboardData }) {
                 </div>
             </section>
 
-            {/* Recent Recipes */}
-            {data.recentRecipes.length > 0 && (
-                <section className="bg-card border border-border rounded-xl">
-                    <div className="p-5 md:p-6 border-b border-border flex justify-between items-center">
-                        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                            {t('recent_additions')}
-                        </h2>
-                        <Link
-                            href="/owner/recipes"
-                            className="text-sm font-medium text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
-                        >
-                            {t('view_audit_log')} <ArrowRight className="h-4 w-4" />
-                        </Link>
-                    </div>
+            {/* Reusable Recent Recipes Component */}
+            <RecipesList
+                recipes={data.recentRecipes}
+                variant="recent"
+            />
 
-                    <div className="divide-y divide-border/50">
-                        {data.recentRecipes.map((recipe) => (
-                            <div
-                                key={recipe.id}
-                                className="flex justify-between items-center px-5 md:px-6 py-3 hover:bg-muted/40 transition-colors"
-                            >
-                                <span className="text-base font-medium text-card-foreground">
-                                    {recipe.meal_name}
-                                </span>
-                                <StatusBadge status={recipe.status} />
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
         </main>
     );
 }

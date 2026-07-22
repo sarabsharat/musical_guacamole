@@ -28,3 +28,7 @@ export const deleteDraftSchema = z.object({
         z.array(z.string().transform((val) => parseInt(val, 10)))
     ]).transform((val) => (Array.isArray(val) ? val : [val]))
 });
+
+export type ConfirmDraftPayload = {
+    recipeId: number;
+};

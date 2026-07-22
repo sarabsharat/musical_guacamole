@@ -1,6 +1,6 @@
 // app/api/v1/tenant/[slug]/route.ts
 import { NextResponse } from "next/server";
-import { getTenantBySlug } from "@/lib/tenant";
+import {getTenantBySlug} from "@/lib/tenant";
 
 export async function GET(
     request: Request,

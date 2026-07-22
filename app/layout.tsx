@@ -9,8 +9,9 @@ import { I18nProvider } from "@/components/providers/i18nProvider";
 import { Toaster } from "@/components/ui/sonner";
 import "@/app/global.css";
 import {SessionProvider} from "next-auth/react";
+import { Metadata } from "next"
 
-export const metadata = {
+export const metadata: Metadata = {
     icons: { icon: "/favicon.ico" },
 };
 
@@ -54,7 +55,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 notoSansArabic.variable,
                 "min-h-screen"
             )}
-            // ❌ Remove inline style – let CSS handle font-family
         >
         <body
             suppressHydrationWarning
@@ -62,7 +62,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 "min-h-screen bg-background font-sans antialiased text-foreground"
             )}
         >
-        <SessionProvider>
+
         <ThemeProvider
             attribute="class"
             defaultTheme="system"
@@ -76,7 +76,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </AuthProvider>
             </I18nProvider>
         </ThemeProvider>
-            </SessionProvider>
         </body>
         </html>
     );

@@ -14,6 +14,10 @@ const STATUS_COLOR: Record<string, string> = {
     REJECTED: "var(--destructive)",
     REVOKED: "var(--wine)",
     FLAGGED: "var(--fats)",
+
+    // NEW: Nutritionist Verification Statuses
+    VERIFIED: "var(--protein)",
+    UNVERIFIED: "var(--muted-foreground)",
 };
 
 export function getStatusColor(status: string) {
@@ -27,6 +31,10 @@ const STATUS_TRANSLATION_KEY: Record<string, string> = {
     REJECTED: "status.rejected",
     REVOKED: "status.revoked",
     FLAGGED: "status.flagged",
+
+    // NEW: Nutritionist Verification Translations
+    VERIFIED: "status.verified",
+    UNVERIFIED: "status.unverified",
 };
 
 export function StatusBadge({ status }: { status: string }) {

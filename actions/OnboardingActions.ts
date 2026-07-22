@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { Role } from "@prisma/client";
+import {requireAuditorAuth} from "@/lib/Authentication/RequireAuditorAuth";
 
 const createRestaurantSchema = z.object({
     business_name: z.string().min(2),
@@ -89,5 +90,45 @@ export async function createRestaurant(_mockUser: unknown, input: z.infer<typeof
     } catch (error) {
         console.error("❌ [OnboardingAction] Error:", error);
         return { success: false, message: "Something went wrong. Please try again." };
+    }
+}
+
+
+const updateAuditorSchema = z.object({
+    certification_url: z.string().url(),
+});
+
+export async function updateAuditorProfile(payload: unknown) {
+    console.log("📝 [updateAuditorProfile] Received payload:", payload);
+
+    const { user } = await requireAuditorAuth();
+
+    const validated = updateAuditorSchema.safeParse(payload);
+    if (!validated.success) {
+        console.error("❌ Validation error:", validated.error.issues);
+        return { success: false, message: validated.error.issues[0].message };
+    }
+
+    const { certification_url } = validated.data;
+
+    try {
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                certification_url,
+                verification_status: "PENDING",
+            },
+        });
+
+        return {
+            success: true,
+            message: "Profile updated. Awaiting verification.",
+        };
+    } catch (error) {
+        console.error("Update auditor profile error:", error);
+        return {
+            success: false,
+            message: "Failed to update profile.",
+        };
     }
 }

@@ -5,8 +5,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
-import { headers } from "next/headers"; // 🚨 Imported headers for subdomain detection
+import { Role, VerificationStatus, Prisma } from "@prisma/client";
+import { headers } from "next/headers";
 
 // ─── Extend types ──────────────────────────────────────────────
 declare module "next-auth" {
@@ -17,6 +17,7 @@ declare module "next-auth" {
             restaurantId: number | null;
             slug: string | null;
             is_active: boolean | null;
+            verification_status?: VerificationStatus | string;
         } & DefaultSession["user"];
     }
     interface User {
@@ -25,6 +26,7 @@ declare module "next-auth" {
         restaurantId: number | null;
         slug: string | null;
         is_active: boolean | null;
+        verification_status?: VerificationStatus | string;
     }
 }
 
@@ -35,6 +37,7 @@ declare module "next-auth/jwt" {
         restaurantId: number | null;
         slug: string | null;
         is_active: boolean | null;
+        verification_status?: VerificationStatus | string;
     }
 }
 
@@ -45,26 +48,37 @@ const cookieDomain = useSecureCookies ? ".musical-guacamole.jo" : ".local.bshara
 // ─── Auth config ───────────────────────────────────────────────
 export const { handlers, signIn, signOut, auth } = NextAuth({
     providers: [
-        // ─── Credentials ──────────────────────────────────────────
         CredentialsProvider({
             name: "Credentials",
             credentials: {
                 email: { label: "Email", type: "email", placeholder: "owner@restaurant.com" },
+                phone_number: { label: "Phone Number", type: "text" },
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) return null;
-                const user = await prisma.user.findUnique({
-                    where: { email: credentials.email as string },
-                    include: { restaurant: true },
+                if (!credentials?.password) return null;
+                if (!credentials?.email && !credentials?.phone_number) return null;
 
+                // Build OR condition without 'any'
+                const where: Prisma.UserWhereInput = {
+                    OR: [
+                        ...(credentials.email ? [{ email: credentials.email as string }] : []),
+                        ...(credentials.phone_number ? [{ phone_number: credentials.phone_number as string }] : []),
+                    ],
+                };
+
+                const user = await prisma.user.findFirst({
+                    where,
+                    include: { restaurant: true },
                 });
+
                 if (!user || !user.password_hash) return null;
 
                 const passwordMatch = await bcrypt.compare(
                     credentials.password as string,
                     user.password_hash
                 );
+
                 if (!passwordMatch) return null;
 
                 return {
@@ -76,11 +90,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     restaurantId: user.restaurant?.id || null,
                     slug: user.restaurant?.slug || null,
                     is_active: user.is_active,
+                    verification_status: user.verification_status,
                 };
             },
         }),
 
-        // ─── Google ────────────────────────────────────────────────
         GoogleProvider({
             clientId: process.env.CLIENT_ID || "",
             clientSecret: process.env.CLIENT_SECRET || "",
@@ -123,6 +137,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     restaurantId: user.restaurant?.id || null,
                     slug: user.restaurant?.slug || null,
                     is_active: user.is_active,
+                    verification_status: user.verification_status,
                 };
             },
         }),
@@ -142,12 +157,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 token.restaurantId = user.restaurantId;
                 token.slug = user.slug;
                 token.is_active = user.is_active;
+                token.verification_status = user.verification_status;
             }
 
             if (trigger === "update" && session) {
                 token.role = session.user?.role;
                 token.restaurantId = session.user?.restaurantId;
                 token.slug = session.user?.slug;
+                token.verification_status = session.user?.verification_status;
             }
             return token;
         },
@@ -159,11 +176,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.restaurantId = token.restaurantId;
                 session.user.slug = token.slug;
                 session.user.is_active = token.is_active;
+                // Explicit cast to avoid 'any'
+                session.user.verification_status = token.verification_status as VerificationStatus | undefined;
             }
             return session;
         },
 
-        // ─── SignIn callback ──────────────────────────────────────
         async signIn({ user }) {
             const headersList = await headers();
             const host = headersList.get("host") || "";
@@ -183,13 +201,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 }
             }
 
-            // 🚨 1. NEW CHECK: Block owners from logging in on the main domain
+            // Block owners from logging in on the main domain
             if (!subdomain && user.role === "restaurant_owner" && user.slug) {
                 console.log(`🚫 [NextAuth] Login Aborted! Owner ${user.slug} tried to log in on the main domain.`);
                 return `/login?error=MainDomainLogin`;
             }
 
-            // 🚨 2. EXISTING CHECK: Block login if the subdomain doesn't match their slug
+            // Block login if subdomain doesn't match their slug
             if (subdomain && user.role === "restaurant_owner" && user.slug) {
                 if (subdomain !== user.slug) {
                     console.log(`🚫 [NextAuth] Login Aborted! ${user.slug} tried logging into ${subdomain}`);
@@ -265,5 +283,7 @@ export async function getServerSession() {
         restaurantId: session.user.restaurantId,
         slug: session.user.slug,
         is_active: session.user.is_active ?? true,
+        verification_status: session.user.verification_status,
+        image_url:session.user.image,
     };
 }

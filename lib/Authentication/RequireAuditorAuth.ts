@@ -1,21 +1,37 @@
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/auth";
+import { Role } from "@prisma/client";
 
 export async function requireAuditorAuth() {
-    const session = await getServerSession();
+    const session = await auth();
 
-    // 1. Ensure user is logged in
-    if (!session) {
+    // 1. Authentication Wall
+    if (!session?.user) {
         redirect("/login");
     }
 
-    // 2. Ensure user has the correct role
-    if (session.role !== "nutritionist_auditor") {
-        redirect("/login?error=unauthorized");
+    // 2. Authorization (RBAC) Wall
+    if (
+        session.user.role !== Role.nutritionist_auditor &&
+        session.user.role !== Role.platform_admin
+    ) {
+        redirect("/unauthorized");
     }
 
-    // Return the safe, validated data
+    // 3. Type Safety for ID
+    const parsedId = parseInt(session.user.id as string, 10);
+
+    if (isNaN(parsedId)) {
+        console.error("Invalid user ID in session:", session.user.id);
+        redirect("/login"); // Or throw an error, depending on your flow
+    }
+
     return {
-        userId: session.id,
+        userId: parsedId,
+        role: session.user.role,
+        user: {
+            ...session.user,
+            id: parsedId,
+        },
     };
 }

@@ -1,10 +1,5 @@
-import {SignupOfficerForm} from "@/components/auth/signup-jfda-form";
+import {SignupForm} from "@/components/auth/signup-form";
 
-
-export default function SignupOfficerPage() {
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-blue-50/50 p-4">
-            <SignupOfficerForm />
-        </div>
-    );
+export default function JFDASignupPage() {
+    return <SignupForm role="jfda_officer" />;
 }

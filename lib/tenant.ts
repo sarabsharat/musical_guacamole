@@ -16,3 +16,14 @@ export async function getTenantContext() {
     }
     return null;
 }
+export async function getTenantBySlug(slug: string) {
+    return prisma.restaurant.findUnique({
+        where: { slug },
+        select: {
+            business_name: true,
+            logo_url: true,
+            background_image_url: true,
+            // add any other public fields you need
+        },
+    });
+}

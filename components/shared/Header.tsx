@@ -17,7 +17,7 @@ type Tenant = {
     business_name: string;
     cert_level: string;
     cert_status: string;
-    logo_url?: string | null; // 👈 added
+    logo_url?: string | null;
 };
 
 type User = {

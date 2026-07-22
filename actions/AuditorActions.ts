@@ -2,7 +2,6 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { assertUserAccess, getSession } from "@/lib/security";
 import { CertLevel, CertStatus, Prisma, RecipeStatus, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
@@ -12,14 +11,80 @@ import {
     verifyRecipeSchema,
 } from "@/lib/validations/audit-schema";
 import { z } from "zod";
+import { requireAuditorAuth } from "@/lib/Authentication/RequireAuditorAuth";
+import {apiRateLimiter, uploadRateLimiter} from "@/lib/RateLimiter/rate-limiter";
+import {getPresignedUploadUrl} from "@/lib/s3-service";
+
+
+
+// ────────────────────────────────────────────────────────────────
+// ─── Get Certificate ──────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+const certUploadSchema = z.object({
+    fileName: z.string().min(1),
+    fileType: z.enum(["application/pdf", "image/jpeg", "image/png"]),
+    fileSize: z.number().int().positive().max(5 * 1024 * 1024), // 5MB limit
+});
+
+export async function getCertificationUploadUrl(input: z.infer<typeof certUploadSchema>) {
+    const { userId } = await requireAuditorAuth();
+
+    const { success: rateLimitSuccess } = await uploadRateLimiter.limit(`upload_cert_${userId}`);
+    if (!rateLimitSuccess) return { success: false, message: "Rate limit exceeded." };
+
+    const validated = certUploadSchema.safeParse(input);
+    if (!validated.success) return { success: false, message: "Invalid file data." };
+
+    const { fileName, fileType, fileSize } = validated.data;
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const fileKey = `certifications/${userId}/${Date.now()}-${sanitizedFileName}`;
+
+    const result = await getPresignedUploadUrl({ fileKey, fileType, fileSize });
+
+    if (!result.uploadUrl) return { success: false, message: "Failed to generate URL." };
+
+    return {
+        success: true,
+        uploadUrl: result.uploadUrl,
+        fileKey: result.fileKey || fileKey,
+    };
+}
+
+// LOGIC: Links the uploaded document to the user and updates status
+export async function submitCertificationDoc(fileKey: string) {
+    const { userId } = await requireAuditorAuth();
+
+    const { success: rateLimitSuccess } = await apiRateLimiter.limit(`submit_cert_${userId}`);
+    if (!rateLimitSuccess) return { success: false, message: "Rate limit exceeded." };
+
+    try {
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                certification_url: fileKey,
+                verification_status: "PENDING"
+            }
+        });
+
+        revalidatePath("/onboarding");
+        return { success: true, message: "Certification submitted successfully." };
+    } catch (error) {
+        console.error("Submission error:", error);
+        return { success: false, message: "Failed to save certification record." };
+    }
+}
+
 
 // ────────────────────────────────────────────────────────────────
 // ─── Get Pending Audit Queue ──────────────────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function getPendingAuditQueue() {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user, userId } = await requireAuditorAuth();
+
+    const { success } = await apiRateLimiter.limit(`auditor-queue-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     try {
         const queue = await prisma.recipe.findMany({
@@ -56,12 +121,15 @@ export async function getPendingAuditQueue() {
 }
 
 // ────────────────────────────────────────────────────────────────
-// ─── Verify Recipe Level 1 (Digital Verification) ────────────
+// ─── Verify Recipe Level 1 ────────────────────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function verifyRecipeLevel1(payload: unknown) {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user, userId } = await requireAuditorAuth();
+
+    const { success } = await apiRateLimiter.limit(`auditor-verify-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     const validated = verifyRecipeSchema.safeParse(payload);
     if (!validated.success) return { success: false, message: validated.error.issues[0].message };
@@ -115,7 +183,7 @@ export async function verifyRecipeLevel1(payload: unknown) {
 
             await tx.auditLog.create({
                 data: {
-                    actor_id: session.id,
+                    actor_id: userId, // 👈 number
                     restaurant_id: recipe.restaurant_id,
                     recipe_id: recipeId,
                     action: approved ? "RECIPE_APPROVED" : "RECIPE_REJECTED",
@@ -147,9 +215,12 @@ export async function verifyRecipeLevel1(payload: unknown) {
 // ─── Submit Physical Site Audit (Level 2) ────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function submitPhysicalSiteAudit(payload: unknown) {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user, userId } = await requireAuditorAuth();
+
+    const { success } = await uploadRateLimiter.limit(`auditor-site-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     const validated = siteAuditSchema.safeParse(payload);
     if (!validated.success) return { success: false, message: validated.error.issues[0].message };
@@ -192,7 +263,7 @@ export async function submitPhysicalSiteAudit(payload: unknown) {
 
             await tx.auditLog.create({
                 data: {
-                    actor_id: session.id,
+                    actor_id: userId,
                     restaurant_id: validData.restaurantId,
                     action: "PHYSICAL_SITE_AUDIT_LOGGED",
                     payload: {
@@ -225,9 +296,12 @@ export async function submitPhysicalSiteAudit(payload: unknown) {
 // ─── Request Clarification from Owner ────────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function requestClarification(payload: unknown) {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user, userId } = await requireAuditorAuth();
+
+    const { success } = await apiRateLimiter.limit(`auditor-clarify-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     const validated = clarificationSchema.safeParse(payload);
     if (!validated.success) return { success: false, message: validated.error.issues[0].message };
@@ -245,7 +319,7 @@ export async function requestClarification(payload: unknown) {
 
         await prisma.auditLog.create({
             data: {
-                actor_id: session.id,
+                actor_id: userId,
                 restaurant_id: recipe.restaurant_id,
                 recipe_id: recipeId,
                 action: "CLARIFICATION_REQUESTED",
@@ -264,9 +338,12 @@ export async function requestClarification(payload: unknown) {
 // ─── Get Restaurants Needing Physical Audit ──────────────────
 // ────────────────────────────────────────────────────────────────
 export async function getRestaurantsNeedingAudit() {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user } = await requireAuditorAuth();
+
+    const { success } = await apiRateLimiter.limit(`auditor-restaurants-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     try {
         const restaurants = await prisma.restaurant.findMany({
@@ -298,17 +375,21 @@ export async function getRestaurantsNeedingAudit() {
 }
 
 // ────────────────────────────────────────────────────────────────
-// ─── Get Auditor Metrics (Performance Dashboard) ─────────────
+// ─── Get Auditor Metrics ──────────────────────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function getAuditorMetrics() {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user, userId } = await requireAuditorAuth();
+    console.log(`[getAuditorMetrics] called at ${new Date().toISOString()}`);
+
+    const { success } = await apiRateLimiter.limit(`auditor-metrics-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     try {
         const reviewsDone = await prisma.auditLog.count({
             where: {
-                actor_id: session.id,
+                actor_id: userId,
                 action: { in: ["RECIPE_APPROVED", "RECIPE_REJECTED"] },
             },
         });
@@ -319,14 +400,14 @@ export async function getAuditorMetrics() {
 
         const approved = await prisma.auditLog.count({
             where: {
-                actor_id: session.id,
+                actor_id: userId,
                 action: "RECIPE_APPROVED",
             },
         });
 
         const rejected = await prisma.auditLog.count({
             where: {
-                actor_id: session.id,
+                actor_id: userId,
                 action: "RECIPE_REJECTED",
             },
         });
@@ -351,12 +432,15 @@ export async function getAuditorMetrics() {
 }
 
 // ────────────────────────────────────────────────────────────────
-// ─── Generate Audit Report (Export) ──────────────────────────
+// ─── Generate Audit Report ────────────────────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function generateAuditReport(payload: unknown) {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin, Role.jfda_officer]);
+    const { user } = await requireAuditorAuth();
+
+    const { success } = await apiRateLimiter.limit(`auditor-report-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     const validated = auditReportSchema.safeParse(payload);
     if (!validated.success) return { success: false, message: validated.error.issues[0].message };
@@ -370,7 +454,6 @@ export async function generateAuditReport(payload: unknown) {
             ...(restaurantId && { restaurant_id: restaurantId }),
         };
 
-        // Use select instead of include to avoid type mismatch
         const logs = await prisma.auditLog.findMany({
             where: whereClause,
             select: {
@@ -414,9 +497,12 @@ export async function generateAuditReport(payload: unknown) {
 // ─── Create Audit Version Manually ────────────────────────────
 // ────────────────────────────────────────────────────────────────
 export async function createAuditVersion(payload: unknown) {
-    const session = await getSession();
-    if (!session) return { success: false, message: "Unauthorized." };
-    await assertUserAccess(session, [Role.nutritionist_auditor, Role.platform_admin]);
+    const { user, userId } = await requireAuditorAuth();
+
+    const { success } = await apiRateLimiter.limit(`auditor-version-${user.id}`);
+    if (!success) {
+        return { success: false, message: "Rate limit exceeded. Please wait a moment." };
+    }
 
     const schema = z.object({ recipeId: z.number().int().positive() });
     const validated = schema.safeParse(payload);
@@ -454,7 +540,7 @@ export async function createAuditVersion(payload: unknown) {
 
         await prisma.auditLog.create({
             data: {
-                actor_id: session.id,
+                actor_id: userId,
                 restaurant_id: recipe.restaurant_id,
                 recipe_id: recipeId,
                 action: "MANUAL_SNAPSHOT_CREATED",

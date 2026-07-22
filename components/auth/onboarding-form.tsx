@@ -148,6 +148,7 @@ export function OnboardingForm() {
                                     onUploadSuccess={(url) => setLogoUrl(url)}
                                     onUploadError={(err) => console.error("Logo upload error:", err)}
                                     onUploadStart={() => console.log("Logo upload started")}
+
                                 />
                             </div>
                             <div className="space-y-2">
@@ -156,6 +157,7 @@ export function OnboardingForm() {
                                     onUploadSuccess={(url) => setBgUrl(url)}
                                     onUploadError={(err) => console.error("Background upload error:", err)}
                                     onUploadStart={() => console.log("Background upload started")}
+
                                 />
                             </div>
                         </div>
