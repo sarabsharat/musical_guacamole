@@ -7,6 +7,10 @@ import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
 import { Role, VerificationStatus, Prisma } from "@prisma/client";
 import { headers } from "next/headers";
+import { Redis } from "@upstash/redis";
+
+// ─── Redis Client ──────────────────────────────────────────────
+const redis = Redis.fromEnv();
 
 // ─── Extend types ──────────────────────────────────────────────
 declare module "next-auth" {
@@ -38,6 +42,8 @@ declare module "next-auth/jwt" {
         slug: string | null;
         is_active: boolean | null;
         verification_status?: VerificationStatus | string;
+        _issuedAt?: number;
+        _lastInvalidationCheck?: number;
     }
 }
 
@@ -59,7 +65,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 if (!credentials?.password) return null;
                 if (!credentials?.email && !credentials?.phone_number) return null;
 
-                // Build OR condition without 'any'
                 const where: Prisma.UserWhereInput = {
                     OR: [
                         ...(credentials.email ? [{ email: credentials.email as string }] : []),
@@ -158,6 +163,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 token.slug = user.slug;
                 token.is_active = user.is_active;
                 token.verification_status = user.verification_status;
+                token._issuedAt = Date.now();
             }
 
             if (trigger === "update" && session) {
@@ -165,19 +171,36 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 token.restaurantId = session.user?.restaurantId;
                 token.slug = session.user?.slug;
                 token.verification_status = session.user?.verification_status;
+                token._issuedAt = Date.now();
             }
             return token;
         },
 
         async session({ session, token }) {
             if (session.user && token) {
+                const userId = Number(token.id);
+
+                // ✅ Try Redis cache first
+                let verificationStatus = await redis.get(`user:${userId}:verification_status`);
+
+                if (!verificationStatus) {
+                    // Cache miss – fetch from DB
+                    const dbUser = await prisma.user.findUnique({
+                        where: { id: userId },
+                        select: { verification_status: true }
+                    });
+                    verificationStatus = dbUser?.verification_status || token.verification_status;
+
+                    // Cache for 60 seconds
+                    await redis.set(`user:${userId}:verification_status`, verificationStatus, { ex: 60 });
+                }
+
                 session.user.id = token.id as string;
                 session.user.role = token.role;
                 session.user.restaurantId = token.restaurantId;
                 session.user.slug = token.slug;
                 session.user.is_active = token.is_active;
-                // Explicit cast to avoid 'any'
-                session.user.verification_status = token.verification_status as VerificationStatus | undefined;
+                session.user.verification_status = verificationStatus as string;
             }
             return session;
         },
@@ -224,6 +247,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         maxAge: 30 * 24 * 60 * 60,
         updateAge: 24 * 60 * 60,
     },
+
     cookies: {
         sessionToken: {
             name: `${cookiePrefix}authjs.session-token`,
@@ -284,6 +308,6 @@ export async function getServerSession() {
         slug: session.user.slug,
         is_active: session.user.is_active ?? true,
         verification_status: session.user.verification_status,
-        image_url:session.user.image,
+        image_url: session.user.image,
     };
 }

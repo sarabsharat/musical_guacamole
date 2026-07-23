@@ -21,11 +21,65 @@ import {
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import {requireAdminAuth} from "@/lib/Authentication/RequireAdminAuth";
+import { Redis } from "@upstash/redis";
+
+const redis = Redis.fromEnv();
+
+
+// ═══════════════════════════════════════════════════════════════
+// invalidate cache
+// ═══════════════════════════════════════════════════════════════
+export async function invalidateUserCache(userId: number) {
+    await redis.del(`user:${userId}:verification_status`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Update Auditor Status
+// ═══════════════════════════════════════════════════════════════
+export async function updateAuditorVerification(userId: number, status: "VERIFIED" | "REJECTED") {
+    await requireAdminAuth();
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { verification_status: status }
+    });
+
+    // ✅ Add notification based on status
+    if (status === "VERIFIED") {
+        await prisma.notification.create({
+            data: {
+                userId: userId,
+                type: "ACCOUNT_VERIFIED",
+                title: "Account Verified!",
+                message: "Congratulations! Your auditor account has been fully verified. You can now access your dashboard and begin reviewing recipes.",
+            }
+        });
+    } else if (status === "REJECTED") {
+        await prisma.notification.create({
+            data: {
+                userId: userId,
+                type: "ACCOUNT_REJECTED",
+                title: "Verification Failed",
+                message: "Your account verification was rejected. Please check your email for details or re-upload your certification documents.",
+            }
+        });
+    }
+
+    // Invalidate Redis cache
+    await redis.del(`user:${userId}:verification_status`);
+
+    revalidatePath("/admin/auditors");
+    revalidatePath("/auditor/dashboard");
+    revalidatePath("/auditor/queue");
+    revalidatePath("/auditor/audit");
+    revalidatePath("/auditor/reports");
+
+    return { success: true };
+}
 
 // ═══════════════════════════════════════════════════════════════
 // FORCE DELETE USER
 // ═══════════════════════════════════════════════════════════════
-
 export async function forceDeleteUser(_mockUser: unknown, userId: number) {
     try {
         // ═════════════════════════════════════════════════════════════════

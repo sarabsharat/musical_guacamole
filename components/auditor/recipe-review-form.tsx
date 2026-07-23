@@ -3,15 +3,39 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { verifyRecipeLevel1, requestClarification } from "@/actions/AuditorActions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Check, X, MessageSquareWarning } from "lucide-react";
+import {requestClarification, verifyRecipeLevel1} from "@/actions/auditor/queries/query";
+
+interface Ingredient {
+    ingredient_item?: {
+        name: string;
+    };
+    user_stated_amount: string;
+}
+
+interface Recipe {
+    id: number;
+    meal_name: string;
+    status: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    total_fat: number;
+    ingredients: Ingredient[];
+    restaurant?: {
+        business_name: string;
+        slug: string;
+    };
+    created_at: string;
+    detected_allergens: string[];
+}
 
 interface RecipeReviewFormProps {
-    recipe: any; // we can improve type later
+    recipe: Recipe;
 }
 
 export function RecipeReviewForm({ recipe }: RecipeReviewFormProps) {
@@ -26,12 +50,21 @@ export function RecipeReviewForm({ recipe }: RecipeReviewFormProps) {
             if (action === "APPROVE") {
                 res = await verifyRecipeLevel1({ recipeId: recipe.id, approved: true });
             } else if (action === "REJECT") {
-                if (!note) return toast.error("Rejection reason is required.");
+                if (!note) {
+                    toast.error("Rejection reason is required.");
+                    setLoading(false);
+                    return;
+                }
                 res = await verifyRecipeLevel1({ recipeId: recipe.id, approved: false, rejectionReason: note });
             } else if (action === "CLARIFY") {
-                if (!note) return toast.error("Clarification message is required.");
+                if (!note) {
+                    toast.error("Clarification message is required.");
+                    setLoading(false);
+                    return;
+                }
                 res = await requestClarification({ recipeId: recipe.id, message: note });
             }
+
             if (res?.success) {
                 toast.success(res.message);
                 router.push("/auditor/queue");
@@ -52,9 +85,9 @@ export function RecipeReviewForm({ recipe }: RecipeReviewFormProps) {
                 <div className="space-y-2">
                     <h3 className="font-semibold">Ingredients</h3>
                     <ul className="space-y-1 text-sm">
-                        {recipe.ingredients?.map((ing: any, i: number) => (
+                        {recipe.ingredients?.map((ing, i) => (
                             <li key={i} className="flex justify-between border-b py-1">
-                                <span>{ing.ingredient_item?.name}</span>
+                                <span>{ing.ingredient_item?.name || "Unknown"}</span>
                                 <span className="text-muted-foreground">{ing.user_stated_amount}</span>
                             </li>
                         ))}

@@ -37,6 +37,10 @@ enum NotificationType {
   SYSTEM
   CERT_APPROVAL
   CERT_REJECTION
+  RECIPE_UPDATE
+  ACCOUNT_VERIFIED
+  ACCOUNT_PENDING
+  ACCOUNT_REJECTED
 }
 
 enum DraftStatus {
@@ -60,28 +64,25 @@ enum VerificationStatus {
 }
 
 model User {
-  id                Int                @id @default(autoincrement())
-  email             String             @unique
-  password_hash     String?
-  phone_number      String?
-  full_name         String?
-  name              String?
-  image             String?
-  emailVerified     DateTime?
-  role              Role?
-  created_at        DateTime           @default(now())
-  is_active         Boolean            @default(true)
-  notificationReads NotificationRead[]
-
-  restaurant Restaurant?
-
-  auditLogs    AuditLog[]
-  reset_tokens PasswordResetToken[]
-  accounts     Account[]
-  sessions     Session[]
-
+  id                  Int                  @id @default(autoincrement())
+  email               String               @unique
+  password_hash       String?
+  phone_number        String?
+  full_name           String?
+  name                String?
+  image               String?
+  emailVerified       DateTime?
+  role                Role?
+  created_at          DateTime             @default(now())
+  is_active           Boolean              @default(true)
+  notifications       Notification[]
+  restaurant          Restaurant?
+  auditLogs           AuditLog[]
+  reset_tokens        PasswordResetToken[]
+  accounts            Account[]
+  sessions            Session[]
   certification_url   String?
-  verification_status VerificationStatus @default(UNVERIFIED)
+  verification_status VerificationStatus   @default(UNVERIFIED)
 }
 
 model Restaurant {
@@ -148,7 +149,7 @@ model Recipe {
   rejection_reason   String?
   detected_allergens String[]           @default([])
   created_at         DateTime           @default(now())
-  notificationReads  NotificationRead[]
+  notifications      Notification[]
   ingredients        RecipeIngredient[]
   versions           RecipeVersion[]
   auditLogs          AuditLog[]
@@ -257,13 +258,18 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model NotificationRead {
-  id       Int      @id @default(autoincrement())
-  userId   Int
-  user     User     @relation(fields: [userId], references: [id])
-  recipeId Int // or auditLogId, depending on what you're tracking
-  recipe   Recipe   @relation(fields: [recipeId], references: [id])
-  readAt   DateTime @default(now())
+model Notification {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
-  @@unique([userId, recipeId]) // prevent duplicates
+  type    NotificationType
+  title   String
+  message String
+  isRead  Boolean          @default(false)
+
+  recipeId Int?
+  recipe   Recipe? @relation(fields: [recipeId], references: [id])
+
+  createdAt DateTime @default(now())
 }

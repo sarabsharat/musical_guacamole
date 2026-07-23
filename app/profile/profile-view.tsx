@@ -10,27 +10,57 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Store, Globe, Lock, Mail, Phone, Pencil, LogOut } from "lucide-react";
+import { User, Store, Globe, Lock, Mail, Phone, Pencil, LogOut, ShieldCheck, FileCheck } from "lucide-react";
 
 export interface ProfileData {
     fullName: string;
     email: string;
     phone: string;
     businessName: string;
-    level: number;
-    status: "ACTIVE" | "SUSPENDED" | "PENDING";
-    language: "en" | "ar";
+    level?: number;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "ACTIVE" | "INACTIVE";
+    language: string;
+    role?: string;
+    verificationStatus?: string;
+    certificationUrl?: string | null;
+    certId?: string | null;
 }
 
 export function ProfileView({ profile }: { profile: ProfileData }) {
     const [editing, setEditing] = useState(false);
+    const isAuditor = profile.role === "nutritionist_auditor";
 
+    // ─── Status helpers ──────────────────────────────────────────────
     const statusColor =
-        profile.status === "ACTIVE"
+        profile.status === "ACTIVE" || profile.status === "APPROVED"
             ? "var(--protein)"
             : profile.status === "PENDING"
                 ? "var(--carbs)"
                 : "var(--fats)";
+
+    const getStatusBadge = () => {
+        const statusMap: Record<string, { label: string; variant: "default" | "destructive" | "secondary" | "outline" }> = {
+            "PENDING": { label: "Pending Review", variant: "secondary" },
+            "APPROVED": { label: "Verified", variant: "default" },
+            "REJECTED": { label: "Rejected", variant: "destructive" },
+            "ACTIVE": { label: "Active", variant: "default" },
+            "INACTIVE": { label: "Inactive", variant: "outline" },
+        };
+        return statusMap[profile.status] || { label: profile.status, variant: "secondary" };
+    };
+
+    const getVerificationStatusBadge = () => {
+        const statusMap: Record<string, { label: string; variant: "default" | "destructive" | "secondary" | "outline" }> = {
+            "UNVERIFIED": { label: "Not Submitted", variant: "outline" },
+            "PENDING": { label: "Pending Review", variant: "secondary" },
+            "VERIFIED": { label: "Approved", variant: "default" },
+            "REJECTED": { label: "Rejected", variant: "destructive" },
+        };
+        return statusMap[profile.verificationStatus || "UNVERIFIED"] || { label: "Unknown", variant: "secondary" };
+    };
+
+    const status = getStatusBadge();
+    const verificationStatus = getVerificationStatusBadge();
 
     return (
         <div className="flex flex-col gap-6 px-4 lg:px-6 py-4 max-w-4xl mx-auto">
@@ -52,10 +82,17 @@ export function ProfileView({ profile }: { profile: ProfileData }) {
                         <div>
                             <h1 className="text-xl font-semibold text-foreground">{profile.fullName}</h1>
                             <p className="text-sm text-muted-foreground">{profile.email}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs">
-                                    Level {profile.level}
-                                </Badge>
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                {!isAuditor && (
+                                    <Badge variant="outline" className="text-xs">
+                                        Level {profile.level}
+                                    </Badge>
+                                )}
+                                {isAuditor && profile.verificationStatus && (
+                                    <Badge variant={verificationStatus.variant} className="text-xs">
+                                        {verificationStatus.label}
+                                    </Badge>
+                                )}
                                 <Badge
                                     className="text-xs border"
                                     style={{
@@ -64,7 +101,7 @@ export function ProfileView({ profile }: { profile: ProfileData }) {
                                         backgroundColor: `color-mix(in srgb, ${statusColor} 10%, transparent)`,
                                     }}
                                 >
-                                    {profile.status.charAt(0) + profile.status.slice(1).toLowerCase()}
+                                    {isAuditor ? "Auditor" : profile.status.charAt(0) + profile.status.slice(1).toLowerCase()}
                                 </Badge>
                             </div>
                         </div>
@@ -89,6 +126,11 @@ export function ProfileView({ profile }: { profile: ProfileData }) {
                     <TabsTrigger value="business" className="gap-2 cursor-pointer">
                         <Store className="h-4 w-4" /> <span className="hidden sm:inline">Business</span>
                     </TabsTrigger>
+                    {isAuditor && (
+                        <TabsTrigger value="verification" className="gap-2 cursor-pointer">
+                            <ShieldCheck className="h-4 w-4" /> <span className="hidden sm:inline">Verification</span>
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="preferences" className="gap-2 cursor-pointer">
                         <Globe className="h-4 w-4" /> <span className="hidden sm:inline">Preferences</span>
                     </TabsTrigger>
@@ -97,7 +139,7 @@ export function ProfileView({ profile }: { profile: ProfileData }) {
                     </TabsTrigger>
                 </TabsList>
 
-                {/* Personal info */}
+                {/* ─── Personal info ─────────────────────────────────── */}
                 <TabsContent value="personal" className="mt-4">
                     <Card>
                         <CardHeader>
@@ -130,42 +172,128 @@ export function ProfileView({ profile }: { profile: ProfileData }) {
                     </Card>
                 </TabsContent>
 
-                {/* Business info */}
+                {/* ─── Business info ─────────────────────────────────── */}
                 <TabsContent value="business" className="mt-4">
                     <Card>
                         <CardHeader>
                             <CardTitle>Business details</CardTitle>
-                            <CardDescription>Information tied to your restaurant account</CardDescription>
+                            <CardDescription>
+                                {isAuditor ? "Professional information" : "Information tied to your restaurant account"}
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-5 sm:grid-cols-2">
                             <div className="space-y-1.5">
-                                <Label htmlFor="businessName">Business name</Label>
+                                <Label htmlFor="businessName">{isAuditor ? "Organization" : "Business name"}</Label>
                                 <Input id="businessName" defaultValue={profile.businessName} disabled={!editing} />
                             </div>
-                            <div className="space-y-1.5">
-                                <Label>Account level</Label>
-                                <div className="flex items-center h-9">
-                                    <Badge variant="outline">Level {profile.level}</Badge>
+                            {!isAuditor ? (
+                                <>
+                                    <div className="space-y-1.5">
+                                        <Label>Account level</Label>
+                                        <div className="flex items-center h-9">
+                                            <Badge variant="outline">Level {profile.level}</Badge>
+                                        </div>
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <Separator className="my-1" />
+                                    </div>
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <Label>Account status</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Your account is currently{" "}
+                                            <span style={{ color: statusColor }} className="font-medium">
+                                                {profile.status.toLowerCase()}
+                                            </span>
+                                            . Contact support if this doesn't look right.
+                                        </p>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="sm:col-span-2 space-y-1.5">
+                                    <Label>Role</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        <Badge variant="outline" className="capitalize">
+                                            {profile.role?.replace("_", " ") || "Auditor"}
+                                        </Badge>
+                                    </p>
                                 </div>
-                            </div>
-                            <div className="sm:col-span-2">
-                                <Separator className="my-1" />
-                            </div>
-                            <div className="space-y-1.5 sm:col-span-2">
-                                <Label>Account status</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Your account is currently{" "}
-                                    <span style={{ color: statusColor }} className="font-medium">
-                                        {profile.status.toLowerCase()}
-                                    </span>
-                                    . Contact support if this doesn't look right.
-                                </p>
-                            </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                {/* Preferences */}
+                {/* ─── Verification (Auditor only) ───────────────────── */}
+                {isAuditor && (
+                    <TabsContent value="verification" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <ShieldCheck className="h-5 w-5 text-primary" />
+                                    Auditor Verification
+                                </CardTitle>
+                                <CardDescription>
+                                    Your certification status and documents
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="grid gap-5">
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label>Verification Status</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant={verificationStatus.variant} className="text-sm px-3 py-1">
+                                                {verificationStatus.label}
+                                            </Badge>
+                                            {profile.verificationStatus === "PENDING" && (
+                                                <span className="text-xs text-amber-600">
+                                                    Awaiting admin approval
+                                                </span>
+                                            )}
+                                            {profile.verificationStatus === "VERIFIED" && (
+                                                <span className="text-xs text-green-600">
+                                                    ✓ Verified
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {profile.certId && (
+                                        <div className="space-y-1.5">
+                                            <Label>Certification ID</Label>
+                                            <p className="text-sm font-medium bg-muted/50 px-3 py-2 rounded-md border">
+                                                {profile.certId}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {profile.certificationUrl && (
+                                    <div className="space-y-1.5">
+                                        <Label>Certification Document</Label>
+                                        <a
+                                            href={profile.certificationUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 text-primary hover:underline text-sm font-medium"
+                                        >
+                                            <FileCheck className="h-4 w-4" />
+                                            View Certification Document
+                                        </a>
+                                    </div>
+                                )}
+
+                                {!profile.certificationUrl && profile.verificationStatus === "UNVERIFIED" && (
+                                    <div className="bg-muted/30 p-4 rounded-lg border border-dashed text-center">
+                                        <p className="text-sm text-muted-foreground">
+                                            No certification document uploaded yet.
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
+
+                {/* ─── Preferences ────────────────────────────────────── */}
                 <TabsContent value="preferences" className="mt-4">
                     <Card>
                         <CardHeader>
@@ -188,7 +316,7 @@ export function ProfileView({ profile }: { profile: ProfileData }) {
                     </Card>
                 </TabsContent>
 
-                {/* Security */}
+                {/* ─── Security ───────────────────────────────────────── */}
                 <TabsContent value="security" className="mt-4">
                     <Card>
                         <CardHeader>

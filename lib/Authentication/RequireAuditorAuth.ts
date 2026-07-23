@@ -1,6 +1,7 @@
+// lib/Authentication/RequireAuditorAuth.ts
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Role } from "@prisma/client";
+import { Role, VerificationStatus } from "@prisma/client";
 
 export async function requireAuditorAuth() {
     const session = await auth();
@@ -23,12 +24,16 @@ export async function requireAuditorAuth() {
 
     if (isNaN(parsedId)) {
         console.error("Invalid user ID in session:", session.user.id);
-        redirect("/login"); // Or throw an error, depending on your flow
+        redirect("/login");
     }
+
+    // 🚨 We no longer redirect pending/unverified auditors here.
+    // Instead, they pass through so you can render a warning banner in the UI.
 
     return {
         userId: parsedId,
         role: session.user.role,
+        verificationStatus: session.user.verification_status, // Pass status for UI checks
         user: {
             ...session.user,
             id: parsedId,

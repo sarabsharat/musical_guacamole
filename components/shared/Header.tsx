@@ -1,3 +1,4 @@
+// components/shared/header.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -32,7 +33,7 @@ type NotificationItem = {
     title: string;
     desc: string;
     time: string;
-    status: string;
+    type: string; // 👈 Changed from status to type
 };
 
 interface HeaderProps {
@@ -59,7 +60,6 @@ export function Header({ role, tenant, title, user, notifications = [], readIds 
         return "/";
     };
 
-    // ─── Compute left content ──────────────────────────────────────
     let leftContent;
     if (role === Role.restaurant_owner && tenant) {
         const logo = tenant.logo_url;
@@ -91,10 +91,8 @@ export function Header({ role, tenant, title, user, notifications = [], readIds 
         );
     }
 
-    // ─── Show badges for owner ─────────────────────────────────────
     const showBadges = role === Role.restaurant_owner && !!tenant;
 
-    // ─── User avatar trigger ──────────────────────────────────────
     const userAvatar = user?.image || "/avatars/dark.png";
     const userInitials = user?.name
         ? user.name
@@ -105,7 +103,6 @@ export function Header({ role, tenant, title, user, notifications = [], readIds 
             .slice(0, 2)
         : "-";
 
-    // ─── Skeleton ──────────────────────────────────────────────────
     if (!mounted) {
         return (
             <header className="bg-card sticky top-0 z-50 border-b">
@@ -124,11 +121,9 @@ export function Header({ role, tenant, title, user, notifications = [], readIds 
         );
     }
 
-    // ─── Full header ──────────────────────────────────────────────
     return (
         <header className="bg-card sticky top-0 z-50 border-b">
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-6">
-                {/* Left side */}
                 <div className="flex items-center gap-4">
                     {leftContent}
                     {showBadges && (
@@ -152,7 +147,6 @@ export function Header({ role, tenant, title, user, notifications = [], readIds 
                     )}
                 </div>
 
-                {/* Right side */}
                 <div className="flex items-center gap-2.5">
                     <NotificationDropdown
                         defaultOpen={false}

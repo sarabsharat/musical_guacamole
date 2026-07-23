@@ -82,9 +82,7 @@ export async function proxy(request: NextRequest) {
             }
 
             if (isAuditor) {
-                if (verificationStatus === "UNVERIFIED" || verificationStatus === "PENDING") {
-                    return NextResponse.redirect(new URL(`http://${baseUrl}/onboarding/auditor`));
-                }
+                // 🚨 Allow pending/unverified auditors to enter the dashboard area instead of trapping them in onboarding
                 return NextResponse.redirect(new URL(`http://${baseUrl}/auditor/dashboard`));
             }
 
@@ -119,19 +117,12 @@ export async function proxy(request: NextRequest) {
         if (isJFDA) {
             allowedPaths = ["/jfda/dashboard", "/jfda/restaurants"];
         } else if (isAuditor) {
+            // 🚨 Allow auditors to access their dashboard, queue, audits, and reports even if pending
             allowedPaths = ["/auditor/dashboard", "/auditor/queue", "/auditor/audit", "/auditor/reports"];
         } else if (isAdmin) {
             allowedPaths = ["/admin/dashboard"];
         } else {
             allowedPaths = ["/dashboard"];
-        }
-
-        // Auditor unverified – force onboarding
-        if (isAuditor && (verificationStatus === "UNVERIFIED" || verificationStatus === "PENDING")) {
-            if (pathname === "/onboarding/auditor" || PUBLIC_PATHS.includes(pathname)) {
-                return NextResponse.next();
-            }
-            return NextResponse.redirect(new URL(`http://${baseUrl}/onboarding/auditor`));
         }
 
         const sharedPaths = ["/profile", "/settings"];

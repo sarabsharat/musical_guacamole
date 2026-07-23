@@ -1,23 +1,16 @@
+// components/shared/status-badge.tsx
 "use client";
 
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-/**
- * Single source of truth for status -> color across the whole app.
- * Both the officer dashboard and the owner dashboard import this so
- * "APPROVED" (etc.) always means the same color everywhere.
- */
+
 const STATUS_COLOR: Record<string, string> = {
     PENDING: "var(--carbs)",
     APPROVED: "var(--protein)",
-    REJECTED: "var(--destructive)",
-    REVOKED: "var(--wine)",
+    REJECTED: "var(--fats)",
+    REVOKED: "var(--fats)",
     FLAGGED: "var(--fats)",
-
-    // NEW: Nutritionist Verification Statuses
-    VERIFIED: "var(--protein)",
-    UNVERIFIED: "var(--muted-foreground)",
 };
 
 export function getStatusColor(status: string) {
@@ -31,16 +24,16 @@ const STATUS_TRANSLATION_KEY: Record<string, string> = {
     REJECTED: "status.rejected",
     REVOKED: "status.revoked",
     FLAGGED: "status.flagged",
-
-    // NEW: Nutritionist Verification Translations
-    VERIFIED: "status.verified",
-    UNVERIFIED: "status.unverified",
 };
 
 export function StatusBadge({ status }: { status: string }) {
-    const { t } = useTranslation("common");
+    const { t } = useTranslation();
     const color = getStatusColor(status);
-    const label = t(STATUS_TRANSLATION_KEY[status] || status, { defaultValue: status });
+
+    // ✅ If translation key exists, use it; otherwise use the raw status
+    const label = STATUS_TRANSLATION_KEY[status]
+        ? t(STATUS_TRANSLATION_KEY[status], { defaultValue: status })
+        : status;
 
     return (
         <span

@@ -60,5 +60,16 @@
     "rejected": "Rejected",
     "revoked": "Revoked",
     "flagged": "Flagged"
-  }
+  },
+  "pending_queue": "Pending Queue",
+  "view_all": "View All",
+  "queue_empty": "No pending recipes. Great job!",
+  "queue_empty_title": "Queue is empty",
+  "queue_empty_desc": "All recipes have been reviewed. Great job!",
+  "recipe_name": "Recipe Name",
+  "restaurant": "Restaurant",
+  "action": "Action",
+  "review": "Review"
+}
+
 }

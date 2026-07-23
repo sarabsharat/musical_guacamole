@@ -4,7 +4,7 @@ import { getTenantContext } from "@/lib/tenant";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/shared/Header";
 import { requireOwnerAuth } from "@/lib/Authentication/RequireOwnerAuth";
-import { getRecentAuditLogs, getReadNotificationIds } from "@/actions/NotificationsActions";
+import { getUserNotifications } from "@/actions/NotificationsActions"; // 👈 New import
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
@@ -13,12 +13,13 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
     const tenant = await getTenantContext();
     if (!tenant) return notFound();
 
-    const recentLogs = await getRecentAuditLogs(tenant.id);
-    const logIds = recentLogs.map(log => Number(log.id));
-    let readIds: number[] = [];
-    if (user?.id && logIds.length > 0) {
-        readIds = await getReadNotificationIds(Number(user.id), logIds);
-    }
+    // ─── Fetch notifications using the new system ──────────────────
+    const notifications = await getUserNotifications();
+
+    // ─── Extract read IDs ──────────────────────────────────────────
+    const readIds = notifications
+        .filter((notif: any) => notif.isRead)
+        .map((notif: any) => Number(notif.id));
 
     const safeUser = {
         name: user?.name || "Guest",
@@ -32,14 +33,14 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
                 role={user?.role || null}
                 tenant={tenant}
                 user={user}
-                notifications={recentLogs}
+                notifications={notifications} // 👈 New notifications
                 readIds={readIds}
             />
 
             <SidebarProvider className="flex-1">
                 <AppSidebar
                     variant="sidebar"
-                    role={user?.role ?? undefined}  // ✅ pass raw role
+                    role={user?.role ?? undefined}
                     user={safeUser}
                 />
 

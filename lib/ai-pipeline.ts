@@ -43,7 +43,7 @@ async function callGeminiVisualExtraction(text: string, imageUrl: string): Promi
     const mimeType = response.headers.get("content-type") || "image/jpeg";
 
     const model = genAI.getGenerativeModel({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
     });
 

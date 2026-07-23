@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { Prisma, Role, VerificationStatus } from "@prisma/client";
+import { Redis } from "@upstash/redis";
+import { auth } from "@/lib/auth";
 
 const registerSchema = z.object({
     email: z.string().email(),
@@ -62,6 +64,36 @@ export async function registerUser(input: RegisterInput) {
         console.error("Registration error:", error);
         return { success: false, message: "Registration failed." };
     }
+}
+
+
+
+const redis = Redis.fromEnv();
+
+export async function refreshMyStatus() {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false };
+
+    const userId = Number(session.user.id);
+
+    // Invalidate Redis cache
+    await redis.del(`user:${userId}:verification_status`);
+
+    // Fetch fresh from DB
+    const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { verification_status: true }
+    });
+
+    if (dbUser) {
+        await redis.set(
+            `user:${userId}:verification_status`,
+            dbUser.verification_status,
+            { ex: 60 }
+        );
+    }
+
+    return { success: true };
 }
 
 export async function logoutUser() {

@@ -1,93 +1,86 @@
-"use server"; // 👈 required for server actions
+// actions/NotificationsActions.ts
+"use server";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { cache } from "react";
 
-export async function getRecentAuditLogs(restaurantId?: number) {
-    const recipes = await prisma.recipe.findMany({
-        where: restaurantId ? { restaurant_id: restaurantId } : {},
-        take: 5,
-        orderBy: { created_at: "desc" },
+// ─── Fetch Notifications for the Logged-In User ──────────────
+export const getUserNotifications = cache(async function () {
+    const session = await auth();
+    if (!session?.user?.id) return [];
+
+    const userId = Number(session.user.id);
+
+    const notifications = await prisma.notification.findMany({
+        where: { userId },
+        take: 10,
+        orderBy: { createdAt: "desc" },
         include: {
-            restaurant: { select: { business_name: true } },
-        },
+            // Include recipe details if you need them for the UI
+            recipe: { select: { meal_name: true, restaurant: { select: { business_name: true } } } }
+        }
     });
 
-    return recipes.map((recipe) => {
-        const styling = parseStyling(recipe.status);
+    return notifications.map((notif) => {
+        const styling = parseStyling(notif.type);
 
-        let title = "Recipe Update";
-        let desc = `Recipe "${recipe.meal_name}" status changed.`;
-
-        if (recipe.status === "PENDING") {
-            title = "New Recipe Submitted";
-            desc = `${recipe.restaurant?.business_name || "A restaurant"} submitted ${recipe.meal_name} for review.`;
-        } else if (recipe.status === "APPROVED") {
-            title = "Recipe Approved";
-            desc = `Recipe "${recipe.meal_name}" has been approved.`;
-        } else if (recipe.status === "REJECTED" || recipe.status === "REVOKED") {
-            title = "Recipe Rejected";
-            desc = `Recipe "${recipe.meal_name}" was rejected by an auditor.`;
-        }
-
-        const timeAgo = new Date(recipe.created_at).toLocaleTimeString([], {
+        const timeAgo = new Date(notif.createdAt).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit'
         });
 
         return {
-            id: recipe.id,
-            title,
-            desc,
+            id: notif.id,
+            title: notif.title,
+            desc: notif.message,
             time: timeAgo,
-            status: recipe.status,
+            isRead: notif.isRead,
+            type: notif.type,
+            recipeId: notif.recipeId,
             textColor: styling.textColor,
+            iconName: styling.iconName,
         };
     });
-}
+});
 
-function parseStyling(status: string) {
-    switch (status) {
-        case "PENDING":
-            return { textColor: "var(--accent)", iconName: "Clock" };
-        case "APPROVED":
+function parseStyling(type: string) {
+    switch (type) {
+        case "ACCOUNT_VERIFIED":
+            return { textColor: "var(--primary)", iconName: "ShieldCheck" };
+        case "ACCOUNT_PENDING":
+            return { textColor: "var(--accent)", iconName: "Hourglass" };
+        case "ACCOUNT_REJECTED":
+            return { textColor: "var(--destructive)", iconName: "ShieldAlert" };
+        case "SYSTEM":
+            return { textColor: "var(--foreground)", iconName: "Info" };
+        case "CERT_APPROVAL":
             return { textColor: "var(--primary)", iconName: "CheckCircle" };
-        case "REJECTED":
-        case "REVOKED":
+        case "CERT_REJECTION":
             return { textColor: "var(--destructive)", iconName: "XCircle" };
+        case "RECIPE_UPDATE":
+            return { textColor: "var(--accent)", iconName: "Utensils" };
         default:
-            return { textColor: "var(--muted-foreground)", iconName: "Star" };
+            return { textColor: "var(--muted-foreground)", iconName: "Bell" };
     }
 }
 
-// ─── Action to mark notifications as read ──────────────────
-export async function markNotificationsAsRead(recipeIds: number[]) {
-    if (!recipeIds.length) return; // nothing to mark
+// ─── Mark specific notifications as read ─────────────────────
+export async function markNotificationsAsRead(notificationIds: number[]) {
+    if (!notificationIds.length) return { success: false };
 
     const session = await auth();
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) return { success: false };
 
-    const userId = Number(session.user.id); // 👈 convert to number
+    const userId = Number(session.user.id);
 
-    await prisma.notificationRead.createMany({
-        data: recipeIds.map(recipeId => ({
-            userId,
-            recipeId,
-        })),
-        skipDuplicates: true,
-    });
-}
-
-export async function getReadNotificationIds(userId: number, recipeIds: number[]) {
-    if (!recipeIds.length) return [];
-
-    const reads = await prisma.notificationRead.findMany({
+    await prisma.notification.updateMany({
         where: {
-            userId: userId,
-            recipeId: { in: recipeIds }
+            id: { in: notificationIds },
+            userId: userId // Security check: Ensure they only mark their own as read
         },
-        select: { recipeId: true }
+        data: { isRead: true }
     });
 
-    return reads.map(r => r.recipeId);
+    return { success: true };
 }
